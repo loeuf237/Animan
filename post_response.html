@@ -1,0 +1,1680 @@
+<!doctype html>
+<html>
+<head>
+   <meta charset="UTF-8">
+   <title> Vidzy – The Next-Gen Video Sharing Platform </title>
+   <link rel="shortcut icon" href="/favicon.ico" type="image/x-icon"/> 
+   <link rel="stylesheet" href="https://vidzy.cc/css/main.css">
+   <meta name="viewport" content="width=device-width, initial-scale=1.0">
+   <script src="https://vidzy.cc/js/jquery.min.js"></script>
+   <script src="https://vidzy.cc/js/xupload.js"></script>
+   
+   
+   <script type="text/javascript">
+    aclib.runAutoTag({
+        zoneId: 'o2sulvflem',
+    });
+</script>
+
+   <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600;700;800&family=Orbitron:wght@700;900&display=swap" rel="stylesheet">
+   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+   <link href="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.css" rel="stylesheet">
+   <meta name="4cb1f03bf0aa1fc073e6d0b8e7089fa884e2d602" content="4cb1f03bf0aa1fc073e6d0b8e7089fa884e2d602" />
+   <style type="text/css">
+    :root {
+      --primary: #6c5ce7;
+      --primary-dark: #5849d1;
+      --primary-light: #7f74e8;
+      --secondary: #fd79a8;
+      --secondary-dark: #e84393;
+      --secondary-light: #ff8eb8;
+      --dark: #0F0F1A;
+      --darker: #070711;
+      --light-dark: #191925;
+      --medium-dark: #14141f;
+      --text: #e2e2e2;
+      --text-muted: #a0a0a0;
+      --accent: #fff;
+      --accent-dark: #00b3ad;
+      --danger: #ff4757;
+      --success: #2ed573;
+      --warning: #ffa502;
+      --border-radius: 8px;
+      --card-border-radius: 12px;
+      --section-border-radius: 16px;
+      --transition: all 0.3s ease;
+      --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+   }
+   #container {
+    width: 100%;
+    max-width: 100%;
+    padding: 0;
+    margin: 150px auto;
+    font-size: 1em;
+}
+
+   .tbl1 {
+    text-align: left;
+    border-collapse: collapse;
+    margin: 132px auto;
+}
+   ul.tabbernav li.tabberactive a {
+    color: var(--text);
+    border-bottom-color: #b8aeff;
+    background-color: rgb(84 69 200 / 68%);
+}
+ 
+   .tbl1 tr td {
+    background-color: #000000;
+    font-size: 12px;
+    padding: 3px;
+}
+
+.enc_value {
+    position: absolute;
+    text-align: center;
+    padding-top: 5px;
+    width: 100%;
+    top: 0;
+    left: 0;
+    background-color: #000000;
+}
+
+.tbl1 tr.hdr td, .tbl1 th, .hdr {
+    background-color: #595959;
+    font-weight: bold;
+    text-align: center;
+}
+.tbl1 tr.hi td, .tbl1 tr:nth-child(odd) td {
+    background-color: #393939;
+}
+   table {
+    font-size: 13px;
+    background: #15151500;
+    margin: 0 auto;
+    border: #ccc 1px solid;
+    border-collapse: collapse;
+}
+
+table tr.even td {
+    background: #f6f6f600;
+}
+
+table tr:hover td {
+    background: #5849d1;
+}
+table tr td {
+    padding: 7px 10px;
+    background: #fafafa;
+    background: #fbfbfb00;
+    border: #ccc 1px solid;
+    xtext-align: center;
+}
+   
+   /* Reset et styles de base */
+   * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+   }
+   
+   html, body {
+      height: 100%;
+      min-height: 100%;
+   }
+   
+   body {
+      background-color: var(--dark);
+      color: var(--text);
+      font-family: 'Montserrat', sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: hidden;
+   }
+   
+   a {
+      color: var(--accent);
+      text-decoration: none;
+      transition: var(--transition);
+   }
+   
+   a:hover {
+      color: var(--secondary);
+   }
+   
+   .logo-vidzy {
+      font-family: 'Orbitron', sans-serif;
+      font-weight: 900;
+      font-size: 32px;
+      letter-spacing: 2px;
+      color: var(--text);
+      text-transform: uppercase;
+      position: relative;
+      display: flex;
+      align-items: center;
+   }
+   
+   .logo-vidzy::before {
+      content: '';
+      position: absolute;
+      top: -10px;
+      left: -20px;
+      width: 40px;
+      height: 40px;
+      background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+      border-radius: 8px;
+      transform: rotate(45deg);
+      z-index: -1;
+   }
+   
+   .logo-vidzy::after {
+      content: '';
+      position: absolute;
+      bottom: -5px;
+      right: -15px;
+      width: 20px;
+      height: 20px;
+      background: var(--accent);
+      border-radius: 4px;
+      transform: rotate(45deg);
+      z-index: -1;
+   }
+   
+   .logo-dot {
+      color: var(--secondary);
+   }
+   
+   .container {
+      width: 94%;
+      max-width: 1200px;
+      margin: 0 auto;
+      position: relative;
+   }
+   
+   .navbar-inner {
+      background-color: rgba(15, 15, 26, 0.95);
+      backdrop-filter: blur(10px);
+      border-bottom: 1px solid rgba(108, 92, 231, 0.2);
+      padding: 15px 0;
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      z-index: 100;
+      transition: var(--transition);
+   }
+   
+   .navbar-inner.scrolled {
+      background-color: var(--darker);
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+   }
+   
+   .brand {
+      display: inline-block;
+      position: relative;
+   }
+   
+   .topSecRight {
+      float: right;
+      margin-top: 8px;
+   }
+   
+   .qlink {
+      background: linear-gradient(to right, var(--primary), var(--primary-dark));
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--border-radius);
+      letter-spacing: 0.5px;
+      color: white !important;
+      padding: 8px 18px;
+      text-decoration: none;
+      text-transform: uppercase;
+      margin-left: 10px;
+      border: none;
+      box-shadow: 0 4px 8px rgba(108, 92, 231, 0.25);
+      transition: var(--transition);
+   }
+   
+   .qlink:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(108, 92, 231, 0.4);
+      background: linear-gradient(to right, var(--primary-dark), var(--primary));
+   }
+   
+   .red {
+      background: linear-gradient(to right, var(--secondary), var(--secondary-dark));
+      box-shadow: 0 4px 8px rgba(253, 121, 168, 0.25);
+   }
+   
+   .red:hover {
+      background: linear-gradient(to right, var(--secondary-dark), var(--secondary));
+      box-shadow: 0 6px 12px rgba(253, 121, 168, 0.4);
+   }
+   
+.admin {
+   background-color: var(--darker);
+   line-height: 50px;
+   text-align: center;
+   border-bottom: 1px solid rgba(108, 92, 231, 0.2);
+   padding: 1px 0;
+   position: fixed;
+   top: 80px; /* Position sous la navbar qui a environ 78px de hauteur */
+   left: 0;
+   width: 100%;
+   z-index: 99; /* Un z-index juste en dessous de la navbar (100) */
+   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+#main {
+   padding-top: 150px !important; /* Augmenter pour accommoder les deux barres */
+}
+
+@media (max-width: 768px) {
+   .admin {
+      top: 60px; /* La navbar est plus petite sur mobile */
+      overflow-x: auto;
+      white-space: nowrap;
+   }
+   
+   #main {
+      padding-top: 130px !important;
+   }
+}
+   
+   .admin a {
+      display: inline-block;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px !important;
+      font-weight: 500;
+      text-decoration: none;
+      padding: 0 16px;
+      color: var(--text-muted);
+      transition: var(--transition);
+      border-radius: var(--border-radius);
+   }
+   
+   .admin a:hover {
+      color: var(--accent);
+      background-color: rgba(108, 92, 231, 0.1);
+   }
+   
+   /* Dropdown Menu */
+   .dropdownMenu {
+      float: left;
+   }
+   
+   .dropbtn {
+      background: linear-gradient(to right, var(--primary), var(--primary-dark));
+      color: white;
+      border: none;
+      cursor: pointer;
+      padding: 8px 18px;
+      font-family: 'Montserrat', sans-serif;
+      font-size: 14px;
+      font-weight: 600;
+      border-radius: var(--border-radius);
+      transition: var(--transition);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      box-shadow: 0 4px 8px rgba(108, 92, 231, 0.25);
+   }
+   
+   .dropbtn:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 6px 12px rgba(108, 92, 231, 0.4);
+   }
+   
+   .dropdown-content {
+      display: none;
+      position: absolute;
+      background-color: var(--light-dark);
+      min-width: 160px;
+      box-shadow: var(--box-shadow);
+      border-radius: var(--border-radius);
+      overflow: hidden;
+      z-index: 1000;
+   }
+   
+   .dropdown-content a {
+      color: var(--text);
+      padding: 12px 16px;
+      text-decoration: none;
+      display: block;
+      font-size: 14px;
+      transition: var(--transition);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+   }
+   
+   .dropdown-content a:last-child {
+      border-bottom: none;
+   }
+   
+   .dropdown-content a:hover {
+      background-color: var(--medium-dark);
+      color: var(--accent);
+   }
+   
+   .dropdown:hover .dropdown-content {
+      display: block;
+   }
+   
+   /* Mobile Menu */
+   .open {
+      font-size: 24px;
+      cursor: pointer;
+      position: absolute;
+      color: white;
+      display: none;
+      padding: 8px 12px;
+      background-color: var(--primary);
+      border-radius: var(--border-radius);
+      right: 20px;
+      top: 20px;
+      z-index: 1000;
+      transition: var(--transition);
+   }
+   
+   .open:hover {
+      background-color: var(--primary-dark);
+   }
+   
+   .sidenav {
+      height: 100%;
+      width: 0;
+      position: fixed;
+      z-index: 2000;
+      top: 0;
+      left: 0;
+      background-color: var(--darker);
+      overflow-x: hidden;
+      transition: 0.5s;
+      padding-top: 60px;
+      text-align: left;
+   }
+   
+   .sidenav a {
+      padding: 15px 25px;
+      text-decoration: none;
+      font-size: 16px !important;
+      color: var(--text-muted);
+      display: block;
+      transition: var(--transition);
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+   }
+   
+   .sidenav a:hover {
+      color: var(--accent);
+      background-color: rgba(255, 255, 255, 0.02);
+   }
+   
+   .sidenav .closebtn {
+      position: absolute;
+      top: 10px;
+      right: 20px;
+      font-size: 36px;
+      background-color: transparent;
+      color: var(--danger);
+      border: none;
+      padding: 0;
+      margin: 0;
+      line-height: 1;
+   }
+   
+   table th {
+    padding: 10px;
+    text-align: center;
+    border: #ccc 1px solid;
+    background: #26003c;
+    height: 25px;
+}
+   
+   #main {
+      clear: both;
+      min-height: 100vh;
+      width: 100%;
+      margin-bottom: 0;
+      background-color: var(--dark);
+      background-image: radial-gradient(circle at 80% 10%, rgba(108, 92, 231, 0.1) 0%, transparent 50%), 
+      radial-gradient(circle at 20% 80%, rgba(253, 121, 168, 0.1) 0%, transparent 50%);
+      background-position: center;
+      background-size: cover;
+      padding-top: 50px !important;
+      padding-bottom: 50px;
+      position: relative;
+   }
+   
+   
+   input[type="text"], input[type="password"], textarea {
+    border: 1px solid #ffffff;
+    background-color: #f8f8f8;
+    padding: 5px;
+    margin: 1px;
+}
+select:not([size]) {
+    background: #323232 url(../images/select.jpg) right center no-repeat;
+}
+   #container {
+      width: 100%;
+      max-width: 100%;
+      padding: 0;
+      margin: 0 auto;
+      font-size: 1em;
+   }
+   
+   .language {
+      position: relative;
+      float: right;
+      margin-left: 20px;
+   }
+   
+   .language ul {
+      list-style: none;
+   }
+   
+   .language > ul > li {
+      position: relative;
+   }
+   
+   .language > ul > li > a {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 40px;
+      height: 40px;
+      border-radius: 50%;
+      background-color: var(--light-dark);
+      transition: var(--transition);
+   }
+   
+   .language > ul > li > a:hover {
+      background-color: var(--primary);
+   }
+   
+   .language > ul > li > ul {
+      position: absolute;
+      top: 100%;
+      right: 0;
+      min-width: 180px;
+      background-color: var(--light-dark);
+      border-radius: var(--border-radius);
+      box-shadow: var(--box-shadow);
+      padding: 10px 0;
+      display: none;
+      z-index: 1000;
+   }
+   
+   .language > ul > li:hover > ul {
+      display: block;
+   }
+   
+   .language > ul > li > ul > li > a {
+      display: flex;
+      align-items: center;
+      padding: 10px 15px;
+      color: var(--text);
+      transition: var(--transition);
+   }
+   
+   .language > ul > li > ul > li > a:hover {
+      background-color: var(--medium-dark);
+      color: var(--accent);
+   }
+   
+   .langname {
+      margin-left: 10px;
+   }
+   
+   #footer {
+      clear: both;
+      padding: 30px 0;
+      background-color: var(--darker);
+      border-top: 1px solid rgba(108, 92, 231, 0.2);
+      font-family: 'Montserrat', sans-serif;
+      width: 100%;
+      color: var(--text-muted);
+   }
+   
+   .footer_inner {
+      display: flex;
+      justify-content: center;
+      padding: 10px 0;
+   }
+   
+   .footer_link p {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: center;
+      gap: 10px;
+   }
+   
+   .footer_link p a {
+      color: var(--text-muted) !important;
+      font-family: 'Montserrat', sans-serif !important;
+      font-size: 14px !important;
+      text-decoration: none;
+      padding: 5px 10px;
+      transition: var(--transition);
+   }
+   
+   .footer_link p a:hover {
+      color: var(--accent) !important;
+   }
+   
+   .social {
+      text-align: center;
+      padding: 20px 0 0;
+      color: var(--text-muted);
+      font-size: 14px;
+   }
+   
+   .social-icons {
+      margin-bottom: 10px;
+   }
+   
+   .social-icons a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      background-color: var(--light-dark);
+      color: var(--text);
+      margin: 0 5px;
+      transition: var(--transition);
+   }
+   
+   .social-icons a:hover {
+      background-color: var(--primary);
+      transform: translateY(-3px);
+   }
+   
+   .device video {
+      width: 100%;
+      height: 100%;
+      object-fit: contain;
+      background-color: var(--darker);
+      display: block;
+   }
+
+   .desktop video,
+   .tablet video,
+   .mobile video {
+      position: relative;
+      object-position: center;
+   }
+   
+    @media (max-width: 1024px) {
+      .container {
+         width: 90%;
+      }
+   }
+   
+   @media (max-width: 991px) {
+      #container {
+         width: 90%;
+      }
+   }
+   
+   @media (max-width: 768px) {
+      .open {
+         display: block;
+      }
+      
+      .topSecRight {
+         display: none;
+      }
+      
+      #main {
+         padding-top: 80px !important;
+      }
+      
+      .admin {
+         overflow-x: auto;
+         white-space: nowrap;
+         padding: 5px 0;
+      }
+   }
+   
+   @media (max-width: 576px) {
+      .container {
+         width: 95%;
+      }
+   }
+   
+ 
+
+.elusive-dmca {
+    display: inline-block;
+    position: relative;
+    z-index: 100;
+}
+
+.elusive-dmca::after {
+    content: '';
+    position: absolute;
+    bottom: -3px;
+    left: 0;
+    width: 100%;
+    height: 2px;
+    background: linear-gradient(to right, #6c5ce7, #fd79a8);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 0.3s ease;
+}
+
+.elusive-dmca:hover::after {
+    transform: scaleX(1);
+}
+
+.catchable {
+    pointer-events: auto !important;
+    background-color: rgba(108, 92, 231, 0.2);
+    border-radius: 4px;
+    padding: 2px 5px;
+    color: #fd79a8 !important;
+    font-weight: bold;
+}
+
+.catchable::before {
+    content: "🎉 ";
+}
+   </style>
+</head>
+<body>
+ 
+
+
+
+
+ <div id="mySidenav" class="sidenav">
+    <a href="javascript:void(0)" class="closebtn" onclick="closeNav()">&times;</a>
+    
+        
+        <a href="https://vidzy.cc/auth/login"><i class="fas fa-sign-in-alt"></i> Login</a>
+        <a href="https://vidzy.cc/auth/signup"><i class="fas fa-user-plus"></i> Sign Up</a>
+        
+    
+    
+    
+</div>
+
+ <div id="wraper">
+    <div class="navbar-inner">
+        <div class="container">
+            <a href="/" class="brand">
+                <div class="logo-vidzy"> VIDZY <span class="logo-dot"></span></div>
+            </a>            
+            <span class="open" onclick="openNav()">
+                <i class="fas fa-bars"></i>
+            </span>
+            
+            <div class="topSecRight">
+                <div style="float:left;">
+                    
+                        
+                        <a class="qlink" href="https://vidzy.cc/auth/login"><i class="fas fa-sign-in-alt"></i> Login</a>
+                        <a class="qlink red" href="https://vidzy.cc/auth/signup"><i class="fas fa-user-plus"></i> Sign Up</a>
+						
+                        
+                    
+                </div>
+                
+             
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="main">
+    <div id="container">
+        <center>
+             <style>
+ 
+img {
+    vertical-align: middle;
+    width: 60px;
+}
+ 
+</style>
+ 
+ 
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.getElementById('F1');
+    if (form) {
+        form.submit();
+    }
+    
+    if (window.opener && window.name.startsWith('bulk_download_')) {
+        setTimeout(function() {
+            const downloadLink = document.querySelector('a.main-button[href*=".mp4"]');
+            if (downloadLink) {
+                try {
+                    window.opener.postMessage({
+                        type: 'download_link_ready',
+                        link: downloadLink.href,
+                        windowName: window.name
+                    }, '*');
+                } catch (e) {
+                    console.error('Erreur postMessage:', e);
+                }
+            }
+        }, 1000);
+    }
+});
+</script>
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const errorMsg = document.querySelector('.err');
+    
+    if (errorMsg && errorMsg.textContent.trim()) {
+        const currentUrl = window.location.href;
+        
+        if (currentUrl.includes('/d/') && currentUrl.includes('_n.html')) {
+            const newUrl = currentUrl.replace('_n.html', '_o.html');
+            window.location.href = newUrl;
+        }
+    } else {
+        const isBulkDownload = window.opener && window.name.startsWith('bulk_download_');
+        
+        if (isBulkDownload) {
+            setTimeout(function() {
+                const downloadButton = document.querySelector('button.main-button');
+                if (downloadButton) {
+                    console.log('🔘 Clic automatique sur le bouton Download');
+                    downloadButton.click();
+                }
+            }, 1000);
+        } else {
+            const urlParams = new URLSearchParams(window.location.search);
+            const bulkIds = urlParams.get('bulk_ids');
+            
+            if (bulkIds && bulkIds.includes(',')) {
+                const episodeData = urlParams.get('episode_data');
+                handleBulkDownload(bulkIds, episodeData);
+            } else {
+                const form = document.getElementById('F1');
+                if (form) {
+                    form.submit();
+                }
+            }
+        }
+    }
+});
+
+function handleBulkDownload(idsString, episodeDataString) {
+    const videoIds = idsString.split(',').filter(id => id.trim() !== '');
+    
+    let episodeMap = new Map();
+    if (episodeDataString) {
+        try {
+            const decoded = JSON.parse(decodeURIComponent(episodeDataString));
+            episodeMap = new Map(decoded);
+        } catch (e) {
+            console.error('Erreur parsing episode data:', e);
+        }
+    }
+    
+    if (videoIds.length < 2) {
+        return;
+    }
+    
+    const mainContent = document.querySelector('.file-details');
+    if (!mainContent) {
+        return;
+    }
+    
+    mainContent.innerHTML = '';
+    
+    const bulkContainer = document.createElement('div');
+    bulkContainer.className = 'bulk-download-container';
+    bulkContainer.style.cssText = `
+        max-width: 900px;
+        margin: 30px auto;
+        padding: 30px;
+        background: rgba(25, 25, 37, 0.7);
+        border-radius: 12px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+    `;
+    
+    const title = document.createElement('h2');
+    title.style.cssText = `
+        font-family: 'Montserrat', sans-serif;
+        font-size: 2rem;
+        font-weight: 700;
+        color: #e2e2e2;
+        text-align: center;
+        margin-bottom: 30px;
+    `;
+    title.innerHTML = `<i class="fa fa-download"></i> Téléchargement Multiple`;
+    bulkContainer.appendChild(title);
+    
+    const infoBox = document.createElement('div');
+    infoBox.style.cssText = `
+        background: rgba(108, 92, 231, 0.2);
+        border-left: 4px solid #6c5ce7;
+        padding: 15px;
+        margin-bottom: 20px;
+        border-radius: 4px;
+        color: #e2e2e2;
+    `;
+    infoBox.innerHTML = `
+        <strong><i class="fa fa-info-circle"></i> ${videoIds.length} épisodes sélectionnés</strong><br>
+        <small>Cliquez sur "Lancer le téléchargement des épisodes" pour démarrer.</small>
+    `;
+    bulkContainer.appendChild(infoBox);
+    
+    const episodeList = document.createElement('div');
+    episodeList.className = 'episode-list';
+    episodeList.style.cssText = `
+        max-height: 400px;
+        overflow-y: auto;
+        margin-bottom: 20px;
+        background: rgba(15, 15, 26, 0.5);
+        border-radius: 8px;
+        padding: 15px;
+    `;
+    
+    videoIds.forEach((videoId, index) => {
+        const episodeName = episodeMap.get(videoId) || `Épisode ${index + 1}`;
+        
+        const episodeItem = document.createElement('div');
+        episodeItem.className = 'episode-item';
+        episodeItem.setAttribute('data-video-id', videoId);
+        episodeItem.style.cssText = `
+            padding: 12px;
+            margin-bottom: 10px;
+            background: rgba(25, 25, 37, 0.8);
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            transition: all 0.3s ease;
+        `;
+        
+        episodeItem.innerHTML = `
+            <div style="display: flex; align-items: center; flex: 1;">
+                <span style="
+                    background: linear-gradient(135deg, #6c5ce7, #fd79a8);
+                    color: white;
+                    padding: 5px 12px;
+                    border-radius: 20px;
+                    font-weight: bold;
+                    margin-right: 15px;
+                    min-width: 35px;
+                    text-align: center;
+                ">${index + 1}</span>
+                <span style="color: #e2e2e2; font-weight: 500;">${episodeName}</span>
+            </div>
+            <div class="episode-status" style="display: flex; align-items: center;">
+                <i class="fa fa-clock" style="color: #ffa502; margin-right: 5px;"></i>
+                <span style="color: #a0a0a0; font-size: 0.9rem;">En attente...</span>
+            </div>
+        `;
+        
+        episodeList.appendChild(episodeItem);
+    });
+    
+    bulkContainer.appendChild(episodeList);
+    
+    const progressBar = document.createElement('div');
+    progressBar.className = 'progress-bar-container';
+    progressBar.style.cssText = `
+        display: none;
+        margin-bottom: 20px;
+    `;
+    progressBar.innerHTML = `
+        <div style="
+            background: rgba(15, 15, 26, 0.5);
+            border-radius: 20px;
+            overflow: hidden;
+            height: 30px;
+            position: relative;
+        ">
+            <div class="progress-bar-fill" style="
+                background: linear-gradient(90deg, #6c5ce7, #fd79a8);
+                height: 100%;
+                width: 0%;
+                transition: width 0.5s ease;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                color: white;
+                font-weight: bold;
+            ">
+                <span class="progress-text">0%</span>
+            </div>
+        </div>
+    `;
+    bulkContainer.appendChild(progressBar);
+    
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.textAlign = 'center';
+    
+    const downloadButton = document.createElement('button');
+    downloadButton.className = 'main-button';
+    downloadButton.style.cssText = `
+        background: linear-gradient(to right, #6c5ce7, #fd79a8);
+        color: white;
+        border: none;
+        border-radius: 8px;
+        padding: 15px 40px;
+        font-size: 1.1rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        cursor: pointer;
+        box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+        transition: all 0.3s ease;
+        margin: 20px 0;
+    `;
+    downloadButton.innerHTML = `
+        <i class="fa fa-download"></i> Lancer le téléchargement des épisodes
+    `;
+    downloadButton.onmouseover = function() {
+        this.style.transform = 'translateY(-3px)';
+        this.style.boxShadow = '0 8px 25px rgba(108, 92, 231, 0.5)';
+    };
+    downloadButton.onmouseout = function() {
+        this.style.transform = 'translateY(0)';
+        this.style.boxShadow = '0 4px 15px rgba(108, 92, 231, 0.4)';
+    };
+    downloadButton.onclick = function() {
+        startBulkDownloadWithPopup(videoIds);
+    };
+    
+    buttonContainer.appendChild(downloadButton);
+    bulkContainer.appendChild(buttonContainer);
+    
+    mainContent.appendChild(bulkContainer);
+}
+
+async function startBulkDownloadWithPopup(videoIds) {
+    console.log('🚀 Début du téléchargement');
+    
+    alert('⚠️ IMPORTANT : Autorisez les popups pour ce site dans votre navigateur.\n\nCliquez sur l\'icône de popup bloquée dans la barre d\'adresse et autorisez les popups.');
+    
+    const button = document.querySelector('.bulk-download-container .main-button');
+    button.disabled = true;
+    button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Génération en cours...';
+    button.style.background = 'linear-gradient(to right, #6c5ce7, #fd79a8)';
+    
+    const progressContainer = document.querySelector('.progress-bar-container');
+    progressContainer.style.display = 'block';
+    
+    const progressFill = document.querySelector('.progress-bar-fill');
+    const progressText = document.querySelector('.progress-text');
+    
+    const directLinks = [];
+    
+    for (let i = 0; i < videoIds.length; i++) {
+        const videoId = videoIds[i];
+        console.log(`\n🔍 Traitement épisode ${i + 1}/${videoIds.length}: ${videoId}`);
+        
+        const episodeItem = document.querySelector(`.episode-item[data-video-id="${videoId}"]`);
+        const statusContainer = episodeItem.querySelector('.episode-status');
+        
+        statusContainer.innerHTML = `
+            <i class="fa fa-spinner fa-spin" style="color: #6c5ce7; margin-right: 5px;"></i>
+            <span style="color: #6c5ce7; font-size: 0.9rem;">Récupération...</span>
+        `;
+        
+        try {
+            const link = await getDirectLinkViaPopup(videoId);
+            
+            if (link) {
+                directLinks.push(link);
+                console.log(`✅ Lien trouvé: ${link}`);
+                
+                statusContainer.innerHTML = `
+                    <i class="fa fa-check-circle" style="color: #2ed573; margin-right: 5px;"></i>
+                    <span style="color: #2ed573; font-size: 0.9rem;">Prêt</span>
+                `;
+                episodeItem.style.background = 'rgba(46, 213, 115, 0.1)';
+            } else {
+                throw new Error('Lien non trouvé');
+            }
+        } catch (error) {
+            console.error(`❌ Erreur pour ${videoId}:`, error);
+            
+            if (error.message === 'Popup bloquée par le navigateur') {
+                alert('❌ Les popups sont bloquées !\n\nVeuillez autoriser les popups pour ce site puis relancer le téléchargement.');
+                button.innerHTML = '<i class="fa fa-times"></i> Popups bloquées - Réessayez';
+                button.style.background = 'linear-gradient(to right, #ff4757, #ff6348)';
+                button.disabled = false;
+                return;
+            }
+            
+            statusContainer.innerHTML = `
+                <i class="fa fa-times-circle" style="color: #ff4757; margin-right: 5px;"></i>
+                <span style="color: #ff4757; font-size: 0.9rem;">Erreur</span>
+            `;
+            episodeItem.style.background = 'rgba(255, 71, 87, 0.1)';
+        }
+        
+        const percentage = Math.round(((i + 1) / videoIds.length) * 100);
+        progressFill.style.width = percentage + '%';
+        progressText.textContent = percentage + '%';
+        
+        await new Promise(resolve => setTimeout(resolve, 1500));
+    }
+    
+    console.log('\n📊 Résumé:', directLinks.length, '/', videoIds.length, 'liens récupérés');
+    
+    if (directLinks.length === 0) {
+        button.innerHTML = '<i class="fa fa-times"></i> Échec - Aucun lien trouvé';
+        button.style.background = 'linear-gradient(to right, #ff4757, #ff6348)';
+        return;
+    }
+    
+    button.innerHTML = '<i class="fa fa-spinner fa-spin"></i> Lancement des téléchargements...';
+    
+    directLinks.forEach((link, index) => {
+        setTimeout(() => {
+            window.open(link, '_blank');
+            console.log(`📥 Téléchargement lancé ${index + 1}/${directLinks.length}`);
+        }, index * 800);
+    });
+    
+    setTimeout(() => {
+        button.innerHTML = `<i class="fa fa-check"></i> ${directLinks.length} téléchargements lancés !`;
+        button.style.background = 'linear-gradient(to right, #2ed573, #26d0ce)';
+        button.disabled = false;
+    }, directLinks.length * 800);
+}
+
+function getDirectLinkViaPopup(videoId) {
+    return new Promise((resolve, reject) => {
+        const urls = [
+            `https://vidzy.org/d/${videoId}_n.html`,
+            `https://vidzy.org/d/${videoId}_o.html`,
+            `https://vidzy.org/d/${videoId}.html`
+        ];
+        
+        let currentIndex = 0;
+        let popup = null;
+        
+        const messageHandler = function(event) {
+            if (event.data && event.data.type === 'download_link_ready') {
+                const windowId = event.data.windowName;
+                if (windowId.includes(videoId)) {
+                    window.removeEventListener('message', messageHandler);
+                    if (popup) {
+                        popup.close();
+                    }
+                    resolve(event.data.link);
+                }
+            }
+        };
+        
+        window.addEventListener('message', messageHandler);
+        
+        function tryNextUrl() {
+            if (currentIndex >= urls.length) {
+                window.removeEventListener('message', messageHandler);
+                if (popup) {
+                    popup.close();
+                }
+                reject(new Error('Toutes les URLs ont échoué'));
+                return;
+            }
+            
+            const url = urls[currentIndex];
+            console.log(`📡 Tentative ${currentIndex + 1}: ${url}`);
+            
+            popup = window.open(url, `bulk_download_${videoId}_${currentIndex}`, 'popup,width=10,height=10,left=10000,top=10000');
+            
+            if (!popup) {
+                console.error('Popup bloquée');
+                window.removeEventListener('message', messageHandler);
+                reject(new Error('Popup bloquée par le navigateur'));
+                return;
+            }
+            
+            const timeout = setTimeout(() => {
+                if (popup && !popup.closed) {
+                    popup.close();
+                }
+                currentIndex++;
+                tryNextUrl();
+            }, 10000);
+            
+            const checkClosed = setInterval(() => {
+                if (popup && popup.closed) {
+                    clearInterval(checkClosed);
+                    clearTimeout(timeout);
+                }
+            }, 500);
+        }
+        
+        tryNextUrl();
+    });
+}
+</script>
+<style>
+/* Styles pour la page de téléchargement - thème VIDZY */
+:root {
+  --primary: #6c5ce7;
+  --primary-dark: #5849d1;
+  --primary-light: #7f74e8;
+  --secondary: #fd79a8;
+  --secondary-dark: #e84393;
+  --secondary-light: #ff8eb8;
+  --dark: #0F0F1A;
+  --light-dark: #191925;
+  --text: #e2e2e2;
+  --text-muted: #a0a0a0;
+  --accent: #00cec9;
+  --border-radius: 8px;
+  --box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+}
+
+img {
+  vertical-align: middle;
+  width: 60px;
+}
+
+/* Style du titre du fichier */
+.text-break {
+  word-break: break-word;
+  font-family: 'Montserrat', sans-serif;
+  font-size: 1.2rem;
+  font-weight: 700;
+  color: var(--text);
+  margin: 20px 0;
+  padding: 15px;
+  text-align: center;
+  position: relative;
+  display: inline-block;
+}
+table tr td.rc, table.rct tr td:first-child {
+    text-align: right;
+    font-weight: bold;
+    vertical-align: top;
+    padding-top: 15px;
+}
+
+.text-break::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 80px;
+  height: 3px;
+  background: linear-gradient(to right, var(--primary), var(--secondary));
+  border-radius: 2px;
+}
+
+/* Style pour le conteneur principal */
+.file-details {
+  max-width: 800px;
+  margin: 30px auto;
+  padding: 30px;
+  background: rgba(25, 25, 37, 0.7);
+  backdrop-filter: blur(10px);
+  border-radius: 12px;
+  box-shadow: var(--box-shadow);
+  border: 1px solid rgba(108, 92, 231, 0.2);
+  text-align: center;
+}
+
+/* Style de la table d'informations */
+.file_slot {
+  width: 100%;
+  margin: 20px 0 30px;
+  background-color: rgba(15, 15, 26, 0.3);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  border-collapse: collapse;
+}
+
+.file_slot td {
+  padding: 15px 20px;
+  color: var(--text);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  text-align: left;
+}
+
+.file_slot .rc {
+  font-weight: 600;
+  width: 40%;
+  color: var(--accent);
+  background-color: rgba(0, 206, 201, 0.05);
+}
+
+/* Style du bouton de téléchargement */
+.main-button {
+  display: inline-block;
+  background: linear-gradient(to right, var(--primary), var(--secondary));
+  color: white !important;
+  border: none;
+  border-radius: var(--border-radius);
+  padding: 15px 40px;
+  font-size: 1.1rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  box-shadow: 0 4px 15px rgba(108, 92, 231, 0.4);
+  transition: all 0.3s ease;
+  position: relative;
+  overflow: hidden;
+  margin: 20px 0;
+  text-decoration: none;
+}
+
+.main-button:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 25px rgba(108, 92, 231, 0.5);
+}
+
+.main-button::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0) 0%, rgba(255, 255, 255, 0.2) 50%, rgba(255, 255, 255, 0) 100%);
+  transition: all 0.8s ease;
+}
+
+.main-button:hover::before {
+  left: 100%;
+}
+
+.main-button i {
+  margin-right: 10px;
+  font-size: 1.1rem;
+}
+
+/* Animation de pulsation pour le bouton */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(108, 92, 231, 0.4);
+  }
+  70% {
+    box-shadow: 0 0 0 15px rgba(108, 92, 231, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(108, 92, 231, 0);
+  }
+}
+
+.main-button {
+  animation: pulse 2s infinite;
+}
+
+/* Style pour les différentes sections */
+.row {
+  width: 100%;
+}
+
+#main {
+  width: 100%;
+  padding: 20px;
+}
+
+/* Responsive */
+@media (max-width: 768px) {
+  .text-break {
+    font-size: 1.4rem;
+  }
+  
+  .file-details {
+    padding: 20px 15px;
+  }
+  
+  .main-button {
+    padding: 12px 30px;
+    font-size: 1rem;
+    width: 100%;
+  }
+}
+
+.subs-download-section {
+  max-width: 700px;
+  margin: 25px auto 0;
+  padding: 25px 30px;
+  background: rgba(20, 20, 20, 0.6);
+  border: 1px solid rgba(167, 139, 250, 0.15);
+  border-radius: 10px;
+  backdrop-filter: blur(8px);
+  text-align: left;
+}
+
+.subs-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+  color: #a78bfa;
+  font-family: ""Montserrat"", sans-serif;
+  font-size: 1.05rem;
+  font-weight: 600;
+  letter-spacing: 0.3px;
+}
+
+.subs-header i {
+  font-size: 1.3rem;
+}
+
+.subs-info {
+  color: #a0a0a0;
+  font-size: 0.88rem;
+  margin: 0 0 20px 0;
+  line-height: 1.5;
+}
+
+.subs-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+  gap: 10px;
+}
+
+.sub-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: rgba(40, 40, 40, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 7px;
+  text-decoration: none;
+  transition: all 0.25s ease;
+  cursor: pointer;
+}
+
+.sub-btn:hover {
+  background: rgba(167, 139, 250, 0.08);
+  border-color: rgba(167, 139, 250, 0.4);
+  transform: translateY(-1px);
+}
+
+.sub-btn-icon {
+  width: 34px;
+  height: 34px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(167, 139, 250, 0.1);
+  border-radius: 6px;
+  color: #a78bfa;
+  font-size: 0.9rem;
+  flex-shrink: 0;
+  transition: all 0.25s ease;
+}
+
+.sub-btn:hover .sub-btn-icon {
+  background: #a78bfa;
+  color: #111;
+}
+
+.sub-btn-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sub-btn-lang {
+  color: #e2e2e2;
+  font-size: 0.9rem;
+  font-weight: 500;
+  font-family: ""Montserrat"", sans-serif;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sub-btn-ext {
+  color: #666;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+}
+
+@media (max-width: 768px) {
+  .subs-download-section {
+    padding: 20px 15px;
+  }
+  .subs-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+</style>
+
+ <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.1.1/css/all.min.css">
+ <link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+<div class="row" id="main">
+  <div class="row">
+  <div class="container file-details">
+ <h3 class="other-title-bold text-break">
+ 
+
+ Naruto_Shippuden_Kai_-_01_-_Kazekage_Gaara.mp4 </h3
+ 
+ ><br />
+ 
+
+
+
+<table class="file_slot table">
+<tr>
+    <td class="rc">Taille du fichier</td>
+    <td>529.6 MB</td>
+ 
+ 
+ </tr>
+</table>
+ 
+ 
+ 
+ 
+<!--
+
+This direct link will be available for your IP next 48 hours<br><br>
+-->
+ 
+<a href="https://u14.vidzy.cc/v/05/00037/cbt4hwdx45ke_n/Naruto_Shippuden_Kai_-_01_-_Kazekage_Gaara.mp4?t=tM-Ht6kR-xK5gm7MSCUF7Cyu9O0HDi_YQOAqjqU23N8&s=1779218207&e=172800&f=189370&sp=1000&i=0.0" class="main-button"> <i class="fa fa-download" aria-hidden="true"></i> Lancer le téléchargement </a>
+
+
+ 
+</div>
+</div>
+</div> 
+
+
+
+
+
+        </center>
+    </div>
+</div>
+
+<!-- Footer -->
+<footer>
+    <div id="footer">
+        <div class="container">
+            <div class="footer_inner">
+                <div class="footer_link">
+                    <p>
+                        
+                        <a href="/tos"><i class="fas fa-gavel"></i> Terms of service</a>
+                        <a href="/make_money.html"><i class="fas fa-dollar-sign"></i> Make Money</a>
+                        <a href="/contact"><i class="fas fa-envelope"></i> Contact Us</a>
+                        <a href="https://Vidzy/dmca.html"><i class="fas fa-copyright"></i> DMCA</a>
+                    </p>
+                </div>
+            </div>
+        
+        </div>
+    </div>
+</footer>
+
+<!-- Scripts -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/aos/2.3.4/aos.js"></script>
+
+
+<script>
+
+document.addEventListener('DOMContentLoaded', function() {
+     const dmcaLink = document.querySelector('a[href*="dmca.html"]');    
+    if (dmcaLink) {
+         dmcaLink.classList.add('elusive-dmca');
+        
+         let mouseX = 0;
+        let mouseY = 0;
+        
+         let originalPosition = { left: 0, top: 0 };
+        let currentPosition = { left: 0, top: 0 };
+        let isHovering = false;
+        
+         dmcaLink.style.position = 'relative';
+        dmcaLink.style.display = 'inline-block';
+        dmcaLink.style.zIndex = '100';
+        
+         document.addEventListener('mousemove', function(e) {
+            mouseX = e.clientX;
+            mouseY = e.clientY;
+            checkProximity();
+        });
+        
+         function checkProximity() {
+            const rect = dmcaLink.getBoundingClientRect();
+            const linkCenterX = rect.left + rect.width / 2;
+            const linkCenterY = rect.top + rect.height / 2;
+            
+             const distanceX = mouseX - linkCenterX;
+            const distanceY = mouseY - linkCenterY;
+            const distance = Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+            
+             if (distance < 100 && !isHovering) {
+                moveLinkAway(distanceX, distanceY);
+            }
+        }
+        
+         function moveLinkAway(distanceX, distanceY) {
+             const dirX = distanceX / Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+            const dirY = distanceY / Math.sqrt(distanceX * distanceX + distanceY * distanceY);
+            
+             const randomAngle = Math.random() * Math.PI * 1.5;  
+            const fleeAngle = Math.atan2(-dirY, -dirX) + randomAngle - Math.PI * 0.75; 
+            
+             const minDistance = 30 + Math.random() * 40; 
+            const moveX = Math.cos(fleeAngle) * minDistance;
+            const moveY = Math.sin(fleeAngle) * minDistance;
+            
+             currentPosition.left += moveX;
+            currentPosition.top += moveY;
+            
+             currentPosition.left = currentPosition.left * 0.8;
+            currentPosition.top = currentPosition.top * 0.8;
+            
+             const rotation = (Math.random() - 0.5) * 10;  
+            
+             dmcaLink.style.transform = `translate(${currentPosition.left}px, ${currentPosition.top}px) rotate(${rotation}deg)`;
+            dmcaLink.style.transition = 'transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1)';  
+            
+             dmcaLink.style.color = '#fd79a8';
+            setTimeout(() => {
+                dmcaLink.style.color = '';
+            }, 300);
+        }
+        
+         dmcaLink.addEventListener('mouseenter', function() {
+            isHovering = true;
+            
+             const jumpDistance = 80 + Math.random() * 40;
+            const jumpAngle = Math.random() * Math.PI * 2;  
+            
+            currentPosition.left = Math.cos(jumpAngle) * jumpDistance;
+            currentPosition.top = Math.sin(jumpAngle) * jumpDistance;
+            
+            dmcaLink.style.transform = `translate(${currentPosition.left}px, ${currentPosition.top}px) scale(1.1)`;
+            dmcaLink.style.transition = 'transform 0.2s cubic-bezier(0.18, 0.89, 0.32, 1.28)';  
+            
+             setTimeout(() => {
+                isHovering = false;
+            }, 300);
+        });
+        
+         let attempts = 0;
+        let timeStarted = null;
+        
+        dmcaLink.addEventListener('mouseleave', function() {
+            if (!timeStarted) {
+                timeStarted = new Date().getTime();
+            }
+            
+            attempts++;
+            isHovering = false;
+            
+             const currentTime = new Date().getTime();
+            const timeElapsed = (currentTime - timeStarted) / 1000;  
+            
+            if (attempts >= 10 && timeElapsed > 20) {
+                dmcaLink.classList.add('catchable');
+                dmcaLink.style.transform = 'translate(0, 0) rotate(0deg)';
+                dmcaLink.style.transition = 'all 0.5s ease';
+                currentPosition = { left: 0, top: 0 };
+                
+                 dmcaLink.innerHTML = '<i class="fas fa-copyright"></i> DMCA (Caught!)';
+                dmcaLink.style.backgroundColor = 'rgba(108, 92, 231, 0.2)';
+                dmcaLink.style.padding = '3px 8px';
+                dmcaLink.style.borderRadius = '4px';
+                dmcaLink.style.color = '#fd79a8';
+                dmcaLink.style.fontWeight = 'bold';
+                
+                 dmcaLink.style.pointerEvents = 'auto';
+                dmcaLink.setAttribute('title', 'Félicitations pour votre persévérance!');
+            }
+        });
+    }
+});
+</script>
+<script>
+     document.addEventListener('DOMContentLoaded', function() {
+        AOS.init({
+            once: true,
+            offset: 100,
+            duration: 800
+        });
+        
+         window.addEventListener('scroll', function() {
+            const navbar = document.querySelector('.navbar-inner');
+            if (window.scrollY > 50) {
+                navbar.classList.add('scrolled');
+            } else {
+                navbar.classList.remove('scrolled');
+            }
+        });
+    });
+    
+     function openNav() {
+        document.getElementById("mySidenav").style.width = "250px";
+    }
+    
+    function closeNav() {
+        document.getElementById("mySidenav").style.width = "0";
+    }
+    
+     function toggleModMenu() {
+        var modMenu = document.getElementById("mod-menu");
+        if (modMenu.style.display === "none") {
+            modMenu.style.display = "block";
+        } else {
+            modMenu.style.display = "none";
+        }
+    }
+</script>
+
+
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"27d8dd52ad4a4ca9960ea8fb9ab7bbbd","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+</html>

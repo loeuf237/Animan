@@ -1,0 +1,107 @@
+﻿
+<?xml version="1.0" encoding="iso-8859-1"?>
+
+<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Transitional//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-transitional.dtd">
+
+<html xmlns="http://www.w3.org/1999/xhtml">
+
+<head>
+
+<title>MySQL Fatal Error</title>
+
+<meta http-equiv="Content-Type" content="text/html; charset=windows-1251" />
+
+<style type="text/css">
+
+<!--
+
+body {
+
+	font-family: Verdana, Arial, Helvetica, sans-serif;
+
+	font-size: 11px;
+
+	font-style: normal;
+
+	color: #000000;
+
+}
+
+.top {
+
+  color: #ffffff;
+
+  font-size: 15px;
+
+  font-weight: bold;
+
+  padding-left: 20px;
+
+  padding-top: 10px;
+
+  padding-bottom: 10px;
+
+  text-shadow: 0 1px 1px rgba(0, 0, 0, 0.75);
+
+  background-color: #AB2B2D;
+
+  background-image: -moz-linear-gradient(top, #CC3C3F, #982628);
+
+  background-image: -ms-linear-gradient(top, #CC3C3F, #982628);
+
+  background-image: -webkit-gradient(linear, 0 0, 0 100%, from(#CC3C3F), to(#982628));
+
+  background-image: -webkit-linear-gradient(top, #CC3C3F, #982628);
+
+  background-image: -o-linear-gradient(top, #CC3C3F, #982628);
+
+  background-image: linear-gradient(top, #CC3C3F, #982628);
+
+  filter: progid:DXImageTransform.Microsoft.gradient( startColorstr='#CC3C3F', endColorstr='#982628',GradientType=0 ); 
+
+  background-repeat: repeat-x;
+
+  border-bottom: 1px solid #ffffff;
+
+}
+
+.box {
+
+	margin: 10px;
+
+	padding: 4px;
+
+	background-color: #EFEDED;
+
+	border: 1px solid #DEDCDC;
+
+
+
+}
+
+-->
+
+</style>
+
+</head>
+
+<body>
+
+	<div style="width: 700px;margin: 20px; border: 1px solid #D9D9D9; background-color: #F1EFEF; -moz-border-radius: 5px; -webkit-border-radius: 5px; border-radius: 5px; -moz-box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.3); -webkit-box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.3); box-shadow: 0px 0px 8px rgba(0, 0, 0, 0.3);" >
+
+		<div class="top" >MySQL Error!</div>
+
+		<div class="box" ><b>MySQL error</b> in file: <b>/engine/modules/search.php</b> at line <b>1406</b></div>
+
+		<div class="box" >Error Number: <b>1191</b></div>
+
+		<div class="box" >The Error returned was:<br /> <b>Can&#039;t find FULLTEXT index matching the column list</b></div>
+
+		<div class="box" ><b>SQL query:</b><br /><br />SELECT dle_post.id, dle_post.autor, dle_post.date, dle_post.short_story, CHAR_LENGTH(dle_post.full_story) as full_story, dle_post.xfields, dle_post.title, dle_post.category, dle_post.alt_name, dle_post.comm_num, dle_post.allow_comm, dle_post.fixed, dle_post.tags, dle_post_extras.news_read, dle_post_extras.allow_rate, dle_post_extras.rating, dle_post_extras.vote_num, dle_post_extras.votes, dle_post_extras.view_edit, dle_post_extras.editdate, dle_post_extras.editor, dle_post_extras.reason FROM dle_post LEFT JOIN dle_post_extras ON (dle_post.id=dle_post_extras.news_id) WHERE dle_post.approve=1 AND dle_post.date &lt; &#039;2026-05-19 21:01:46&#039; AND (MATCH(title) AGAINST(&#039;Naruto&#039; IN BOOLEAN MODE)) ORDER BY date desc LIMIT 0,18</div>
+
+		</div>		
+
+<script>(function(){function c(){var b=a.contentDocument||a.contentWindow.document;if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'9fe55a22ef69e003',t:'MTc3OTIxNzMwNg=='};var a=document.createElement('script');a.src='/cdn-cgi/challenge-platform/scripts/jsd/main.js';document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script><script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"f07c85acc5ce494489dd82722d803774","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</body>
+
+</html>

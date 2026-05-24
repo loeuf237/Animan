@@ -1,0 +1,152 @@
+<HTML>
+<HEAD>
+ 
+<link rel="stylesheet" href="/css/main.css">
+<script src="/js/jquery.min.js"></script>
+<script src="/js/xupload.js"></script> 
+<script src="/js/jquery.cookie.js"></script>
+ <style>
+.video-js .vjs-big-play-button {
+    z-index: 8 !important;
+    cursor: pointer !important;
+    visibility: visible !important;
+    text-align: center !important;
+    opacity: 1 !important;
+    background-color: #ffffff0a  !important;
+    border-radius: 50% !important;
+    padding: 0 !important;
+    position: absolute !important;
+    top: 50% !important;
+    left: 50% !important;
+    transform: translate(-50%, -50%) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3) !important;
+}
+ </style>
+
+<style> .vjs-custom-control-spacer { flex: auto; height: 30px; display: -webkit-box; max-width: none; } .video-js .vjs-big-play-button .vjs-svg-icon { fill: #000; filter: none; width: 100px!important; height: 100px!important; } .vjs-audio-button { display: block !important; visibility: visible !important; opacity: 1 !important; } .video-js .vjs-progress-control .vjs-play-progress { background-color: #ff0000!important; } .video-js .vjs-big-play-button { z-index: 8 !important; cursor: pointer !important; visibility: visible !important; text-align: center !important; opacity: 1 !important; background-color: #ffffff00   !important; border-radius: 50% !important; width: 120px!important; height: 120px!important; padding: 0 !important; position: absolute !important; top: 50% !important; left: 50% !important; transform: translate(-50%, -50%) !important; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important; box-shadow: 0 8px 32px rgba(0, 0, 0, 0.0) !important; } .video-js .vjs-big-play-button:hover { transform: translate(-50%, -50%) scale(1.1); background: rgba(255, 255, 255, 1); box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4); } .video-js .vjs-big-play-button:active { transform: translate(-50%, -50%) scale(0.95); transition: all 0.1s ease; } .video-js .vjs-big-play-button .vjs-icon-placeholder { font-size: 32px; line-height: 150px; color: #fff; transition: all 0.3s ease; } .video-js .vjs-big-play-button .vjs-icon-placeholder svg { fill: #ff0000bd; transition: fill 0.3s ease; } .video-js .vjs-big-play-button .vjs-icon-placeholder:before { color: #ff0000; transition: color 0.3s ease; } .video-js .vjs-big-play-button:hover .vjs-icon-placeholder { color: #ff0000; } .video-js .vjs-big-play-button:hover .vjs-icon-placeholder svg { fill: #ff0000; } .video-js .vjs-big-play-button:hover .vjs-icon-placeholder:before { color: #ff0000bd; } \@media (max-width: 768px) { .vjs-custom-control-spacer { flex: 0.5; min-width: 20px; max-width: 60px; } .vjs-audio-button { display: block !important; visibility: visible !important; min-width: 35px !important; } .video-js .vjs-big-play-button { width: 72px; height: 72px; } .video-js .vjs-big-play-button .vjs-icon-placeholder { font-size: 28px; line-height: 72px; } } \@media (max-width: 480px) { .vjs-custom-control-spacer { flex: 0.2; min-width: 10px; max-width: 30px; height: 32px; } .vjs-audio-button { display: block !important; visibility: visible !important; min-width: 32px !important; } .video-js .vjs-big-play-button { width: 64px; height: 64px; } .video-js .vjs-big-play-button .vjs-icon-placeholder { font-size: 24px; line-height: 64px; } } \@media (max-width: 360px) { .vjs-custom-control-spacer { flex: 0.1; min-width: 5px; max-width: 15px; height: 28px; } .vjs-audio-button { display: block !important; visibility: visible !important; min-width: 30px !important; } } </style>
+
+<style> 
+
+
+a {font-family: 'Courier New', Courier, monospace;font-size: 25px;color: white;text-shadow: 2px 2px 4px #000000;background-color: rgb(255 255 255 / 0%);border-radius: 8px;box-shadow: 3px 1px 2px 0px rgb(255 255 255 / 50%);}}.hidh {    display: none; }.hidh {  display: none !important;}</style>
+
+<div id="statut-premium">
+  <div class="hidh"> P1</div>
+</div> 
+</HEAD> 
+<BODY topmargin=0 leftmargin=0 style="background:transparent;"> 
+
+ 
+
+    <div style="position:relative;">
+     
+
+		<div id="adbd" class="overdiv">
+			<div>Disable ADBlock plugin and allow pop-ups in your browser to watch video</div>
+		</div>
+
+		<div id="play_limit_box">
+		<a href="https://vidzy.live/premium.html" target="_blank"> Upgrade to Premium to remove this limit and avoid overloads </a>  
+		</div>
+
+    
+<script>
+(function(){
+var isFs=false,exitBtn=document.createElement("div");
+exitBtn.innerHTML="<svg viewBox=\"0 0 24 24\" fill=\"white\" width=\"22\" height=\"22\"><path d=\"M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z\"/></svg>";
+exitBtn.style.cssText="display:none;position:fixed;top:15px;right:15px;z-index:2147483647;width:50px;height:50px;background:rgba(0,0,0,0.8);border-radius:50%;color:white;cursor:pointer;align-items:center;justify-content:center;transition:all 0.3s ease";
+exitBtn.onmouseover=function(){this.style.background="rgba(239,112,0,0.9)";this.style.transform="scale(1.1)";};
+exitBtn.onmouseout=function(){this.style.background="rgba(0,0,0,0.8)";this.style.transform="scale(1)";};
+exitBtn.onclick=function(){try{window.parent.postMessage({action:"exit_iframe_fullscreen"},"*")}catch(e){}};
+document.body.appendChild(exitBtn);
+var ht;
+function sB(){exitBtn.style.display="flex";exitBtn.style.opacity="1";clearTimeout(ht);ht=setTimeout(function(){if(isFs)exitBtn.style.opacity="0"},3000);}
+function hB(){exitBtn.style.display="none";exitBtn.style.opacity="1";}
+var initH=window.innerHeight,initW=window.innerWidth;setInterval(function(){var h=window.innerHeight,w=window.innerWidth;if(h>initH+50||w>initW+50||(h>=screen.height-5&&w>=screen.width-5)){if(isFs===false){isFs=true;sB()}}else{if(isFs===true){isFs=false;hB()}}},300);
+document.addEventListener("mousemove",function(){if(isFs){exitBtn.style.opacity="1";sB()}});
+document.addEventListener("touchstart",function(){if(isFs){exitBtn.style.opacity="1";sB()}});
+window.addEventListener("message",function(ev){if(ev.data&&ev.data.action==="enter_fullscreen"){isFs=true;sB()}if(ev.data&&(ev.data.action==="iframe_exited_fullscreen"||ev.data.action==="exit_fullscreen")){isFs=false;hB()}});
+})();
+</script>
+
+ 
+<script src="https://www.gstatic.com/cv/js/sender/v1/cast_sender.js?loadCastFramework=1"></script>
+ 
+<script src="https://vidzy.live/js/pop.js?1"></script>
+<Script>function hab1(){var t=document.createElement('div1');t.innerHTML='&nbsp;',t.className='ad doubleclick google-ad adsbox pub_300x250 pub_300x250m pub_728x90 text-ad textAd text_ad text_ads text-ads skyscraper text-ad-links';var e=!(t.style='width: 1px !important; height: 1px !important; position: absolute !important; left: -10000px !important; top: -1000px !important;');try{document.body.appendChild(t);var a=document.getElementsByClassName('adsbox')[0];if(0!==a.offsetHeight&&0!==a.clientHeight||(e=!0),void 0!==window.getComputedStyle){var d=window.getComputedStyle(a,null);!d||'none'!=d.getPropertyValue('display')&&'hidden'!=d.getPropertyValue('visibility')||(e=!0)}document.body.removeChild(t)}catch(a){}return e;};</Script>
+
+ 
+<link href="https://vidzy.live/videojs/skins/shaka/videojs.min.css" rel="stylesheet" type="text/css" />
+<script src="https://vidzy.live/videojs/video.min.js"></script>
+<script src="https://vidzy.live/videojs/nuevo.min.js?v=2"></script>
+<style>
+ 
+.video-js .vjs-big-play-button {
+    z-index: 8 !important;
+}
+
+.video-js .vjs-text-track-settings {
+    color: #111;
+    z-index: 999;
+    background-color: #fff;
+    border-radius: 8px;
+    outline: 0;
+    width: 90%;
+    max-width: 400px;
+    height: 95%;
+    max-height: 95%;
+    margin: 0 auto;
+    font-size: 12px;
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+}
+ </style>
+ 
+<script src="https://vidzy.live/videojs/plugins/videojs.hotkeys.min.js"></script> 	
+<script src="https://vidzy.live/videojs/plugins/videojs.airplay.js"></script> 	
+<script src="https://vidzy.live/videojs/plugins/videojs-chromecast.min.js"></script> 
+<script src="https://vidzy.live/videojs/plugins/vast.vpaid.min.js"></script>
+<script src="https://vidzy.live/videojs/plugins/videojs.filters.js"></script> 
+<script src="https://vidzy.live/videojs/plugins/vast.vpaid.min.js"></script>
+
+<video id="vjsplayer"  height="480" width="640" class="video-js vjs-fill vjs-jwlike-skin  playsinline" style="width:100%;height:100%;text-align:center;" width="100%" height="100%" crossorigin="anonymous" controls="true"  preload="metadata">
+
+</video> 
+
+
+ 
+
+
+    </div>
+
+ 
+
+
+<script type='text/javascript'>eval(function(p,a,c,k,e,d){while(c--)if(k[c])p=p.replace(new RegExp('\\b'+c.toString(a)+'\\b','g'),k[c]);return p}('9 6,4h;6=3i(\'2r\',{aw:"av",au:o,at:[\'19\',\'as\'],ar:[{1q:"j://2h.h.41/aq/2g/2i/,ap,.ao/an.am?t=al&s=3a&e=ak&f=3b&i=0.0&aj=0&ai=y",ah:"ag/x-af"}]});6.4h(\'\');9 ae=[];6.2p({ac:\'h.1b\',ab:\'3x\',40:o,aa:\'//h.1b\',a9:\'j://h.1b\',a8:\'\',a7:\'<4g a6="j://h.1b/1u-y.1t" a5=0 a4=0 a3=0 a2=a1 a0=9z 9y=9x 4f></4g>\',9w:\'9v\',2c:"4e 4d 4c 4b 4a 49 48 47 46 -45-44 (43).42",1u:\'<22 1q="j://h.1b/1u-y.1t" 2x="0" 9u 9t 4f k="36: 35; 1r: 0; 34: 0; q:13%; 1s:13%;"></22>\',9s:\'y\',9r:n,9q:\'j://h.1j/y.1t\',3z:n,9p:n,9o:o,9n:\'j://h.1b\',9m:\'\',9l:\'j://h.1b\',9k:n,9j:n,});6.9i();6.19({9h:n,9g:n,9f:"4e 4d 4c 4b 4a 49 48 47 46 -45-44 (43).42",9e:"",9d:"j://2h.h.41/i/2g/2i/9c.9b"});6.9a();6.99({98:0.1,97:5,96:n});6.z(\'95\',8(){3d()});6.z(\'2q\',8(94,2q){9 q;a(2q==\'93\')q="13%";3k q=\'70%\';p.u(".92").k.q=q});6.2p({91:n});6.2p({40:o});6.90(8(){9 1i=6.18.8z(\'v\',{});1i.8y(\'g-8x-v\');1i.1o().2e=\'<1h 2d="g-3o-8w" 8v-8u="n"><3w 8t="0 0 24 24" q="20" 1s="20" k="3z:8s;21:#8r;21-q:2;21-8q:3y;21-8p:3y;3x-32:8o;"><8n d="8m 8l 2 0 0 1-2 8k 2 0 0 1-2-2v-4"/><8j 8i="7 10 12 15 17 10"/><8h 8g="12" 8f="15" 8e="12" 8d="3"/></3w></1h>\';1i.1o().2c=\'8célé8b\';1i.z(\'2w\',8(){9 2o=\'y\';a(2o){1l.8a(\'j://h.1j/d/\'+2o+\'89\',\'88\')}});9 2n=6.18.87(\'86\');a(2n)6.18.1o().85(1i.1o(),2n.1o());9 2m=2u.84;2m.83({"82":"#81","80":"0","7z":"7y","7x":"1.25",});2m.7w()});29(8(){9 2l=p.u(".g-7v-7u-v");a(2l){9 2j=2l.u(".g-2k-27");a(2j){9 w=p.3q("w");w.3p="g-2k-3v";w.7t("7s","7r");w.2e="<1h 2d=\\"g-2k-3v-33\\">+ 7q 7p</1h>";w.k.7o="7n:#7m;7l-1r:7k 7j #7i;7h:7g";w.7f=8(e){e.3u();e.3t();38()};w.3n=8(e){e.3u();e.3t()};2j.3j(w)}}},7e);6.z(\'7d\',8(){6.7c([{7b:\'7a\',79:\'78\',77:\'76\',1q:\'j://h.1j/75/74.73?72=2i&71=2h&6z=2g\',6y:n}])});29(8(){c.b(\'6x 1g 6w 14 - 6v 6u...\');9 1a=p.u(\'.g-19-v\');9 18=p.u(\'.g-1m-1w\');c.b(\'1y v 3s:\',!!1a);c.b(\'6t 1w 3s:\',!!18);a(1a){1a.k.14=\'1e !2f\';1a.k.6s=\'3r !2f\';1a.k.6r=\'1 !2f\';c.b(\'6q 19 v 6p 3r\')}a(!1a&&18){9 16=p.3q(\'v\');16.3p=\'g-19-v g-1m g-v\';16.2e=\'<1h 2d="g-3o-1g">📺</1h>\';16.2c=\'1z 6o 1y\';16.k.14=\'1e\';16.3n=8(){a(6&&6n 6.19===\'8\'){6m{6.19().3l();c.b(\'1z 2a 6l 6k 6 3m\')}6j(e){c.b(\'6i 1g 6h, 6g 6f 3m\');a(1l.2b&&1l.2b.1g){2b.1g.3l(8(2a){c.b(\'1z 2a 3h\')},8(1x){c.b(\'1z 1x:\',1x)})}3k{6e(\'1y 6d 6c. 6b-6a d\\\'ê69 68 67 mê66 ré65 64\\\'63 1y.\')}}}};18.3j(16);c.b(\'62 1g v 61\')}},5z);3i.5y(\'5x-5w\',{\'5v\':\'5u\'});6.5t({5s:"",5r:10,5q:o,5p:o});9 1v=0;9 11=0;9 1f=5o;9 1c=o;6.z(\'5n\',8(){a(!1c){11=6.1n();c.b(\'5m 1n 5l:\',11)}});6.z(\'5k\',8(){c.b(\'28 ad 3h\');1c=n;1v=6.26();a(!11){11=6.1n()}1f=p.u(\'.g-5j-1m\')});6.z(\'5i\',8(){c.b(\'28 ad 5h - 3g 27\');1c=o;a(1f){1f.k.14=\'1e\'}p.u(\'.g-1m-1w\').k.14=\'1e\';9 1d=p.u(\'3f\');a(1d){1d.3e=o}6.26(1v);29(8(){a(11&&6.1n()!==11){c.b(\'5g 5f 1n:\',11)}6.2t()},13)});6.z(\'5e\',8(){c.b(\'28 ad 1x - 3g 27\');1c=o;a(1f){1f.k.14=\'1e\'}p.u(\'.g-1m-1w\').k.14=\'1e\';9 1d=p.u(\'3f\');a(1d){1d.3e=o}6.26(1v)});5d(8(){a(1c){c.b(\'5c 5b...\')}},13);9 23,5a,59=0;8 3d(x){$(\'37.58\').57();a(23)56;23=1;1k=0;a(1l.55===3c){1k=1}a(54()||1l.53===3c){1k=1}$.52(\'j://h.1j/51?2z=50&2y=y&4z=3b-4y-4x-3a-4w&1u=1&1k=\'+1k,8(39){$(\'#4v\').1t(39)});}8 38(){6.4u();9 $1p=$("<37 />").31({36:"35",q:"13%",1s:"13%",34:0,1r:0,30:4t,4s:"4r(10%, 10%, 10%, 0.4)","33-32":"4q"});$("<22 />").31({q:"60%",1s:"60%",30:4p,"4o-1r":"4n"}).4m({\'1q\':\'j://h.1j/?2z=4l&2y=y\',\'2x\':\'0\',\'4k\':\'4j\'}).2s($1p);$1p.2w(8(){$(2u).4i();6.2t()});$1p.2s($(\'#2r\'))}',36,393,'||||||player||function|var|if|log|console||||vjs|vidzy||https|style|||true|false|document|width||||querySelector|button|li||m888nvcn5e58|on||originalDuration||100|display||newCastBtn||controlBar|chromecast|chromecastBtn|org|adPlaying|videoElement|block|originalProgress|cast|span|dlBtn|live|adb|window|control|duration|el|dd|src|top|height|html|embed|originalCurrentTime|bar|error|Chromecast|Cast||stroke|iframe|vvplay|||currentTime|content|VAST|setTimeout|session|chrome|title|class|innerHTML|important|03|v6|00046|ml|menu|sc|settings|fsBtn|fc|nuevo|mode|vjsplayer|appendTo|play|this||click|frameborder|file_code|op|zIndex|css|align|text|left|absolute|position|div|showCCform|data|1779217488|234916|undefined|playhandler|muted|video|resuming|started|videojs|appendChild|else|requestSession|API|onclick|icon|className|createElement|visible|found|preventDefault|stopPropagation|item|svg|vertical|round|fill|contextMenu|cc|mkv|ADN|Raws|Tsundere|AAC|x264|WEB|1080p|VOSTFR|S01E06|Gurashi|Mankitsu|Ichijyoma|allowfullscreen|IFRAME|poster|remove|no|scrolling|upload_srt|prop|50px|margin|1000001|center|rgba|background|1000000|pause|fviews|44c4a93275601135f63ae835c4bdef8c|210|165|hash|view|dl|get|googleAd|hab1|cRAds|return|hide|video_ad|x2ok|vvad|playing|Ad|setInterval|aderror|original|Restoring|ended|adend|progress|adstart|saved|Original|loadedmetadata|null|contentPlayback|adControls|skipButton|tagURL|vastAds|Normal|488p|us|en|addLanguage|4000||created|Functional|un|qu|seau|me|le|sur|tre|vous|Assurez|disponible|non|alert|browser|trying|failed|Player|catch|via|requested|try|typeof|to|forced|Native|opacity|visibility|Control|version|Final|buttons|Forcing|default|disk||srv|dx|vtt|m888nvcn5e58_fre|srtproxy|French|label|fre|srclang|subtitles|kind|loadTracks|loadeddata|3000|onmousedown|pointer|cursor|444|solid|1px|border|bb86fc|color|cssText|Sub|Add|menuitemradio|role|setAttribute|caps|subs|updateDisplay|fontPercent|uniform|edgeStyle|backgroundOpacity|000|backgroundColor|setValues|textTrackSettings|insertBefore|fullscreenToggle|getChild|_blank|_n|open|charger|T|y2|x2|y1|x1|line|points|polyline|2H5a2|15v4a2|M21|path|middle|linejoin|linecap|fff|none|viewBox|hidden|aria|placeholder|download|addClass|addChild|ready|theaterButton|theater|large|event|nuevoReady|alwaysCaptureHotkeys|seekStep|volumeStep|hotkeys|filters|jpg|m888nvcn5e58_t|metaThumbnail|metaSubtitle|metaTitle|alwaysShow|overlayButton|airplay|buttonForward|infoBold|infoDescription|infoTitle|infoUrl|videoInfo|responsive|shareUrl|resume|video_id|mozallowfullscreen|webkitallowfullscreen|share|endAction|360|HEIGHT|640|WIDTH|NO|SCROLLING|MARGINHEIGHT|MARGINWIDTH|FRAMEBORDER|SRC|shareEmbed|contextIcon|contextText|contextUrl|sldeType|logotitle||related_videos|mpegURL|application|type|fr|sp|172800|hakxLpbPAi8AdQwM4h0pAWSWdIagIOCrNARLXjVqpMU|m3u8|master|urlset|m888nvcn5e58_n|hls2|sources|html5|techOrder|autoplay|120e55491d495e4103|license'.split('|')))
+</script>
+
+
+<script> (function() { let player = null; let playerType = 'videojs'; var fsExitBtn = null; var fsHideTimer = null; var isFsMode = false; function createFsExitBtn() { if (fsExitBtn) return; fsExitBtn = document.createElement("div"); fsExitBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="white" width="24" height="24"><path d="M5 16h3v3h2v-5H5v2zm3-8H5v2h5V5H8v3zm6 11h2v-3h3v-2h-5v5zm2-11V5h-2v5h5V8h-3z"/></svg>'; fsExitBtn.style.cssText = "display:none;position:fixed;top:15px;right:15px;z-index:2147483647;width:50px;height:50px;background:rgba(0,0,0,0.8);border:2px solid rgba(255,255,255,0.3);border-radius:50%;color:white;cursor:pointer;align-items:center;justify-content:center;transition:all 0.3s ease;backdrop-filter:blur(10px);"; fsExitBtn.onmouseover = function(){ this.style.background="rgba(239,112,0,0.9)"; this.style.transform="scale(1.1)"; }; fsExitBtn.onmouseout = function(){ this.style.background="rgba(0,0,0,0.8)"; this.style.transform="scale(1)"; }; fsExitBtn.onclick = function(){ try { window.parent.postMessage({action:"exit_iframe_fullscreen"}, "*"); } catch(e){} }; document.body.appendChild(fsExitBtn); } function showFsExitBtn() { createFsExitBtn(); isFsMode = true; fsExitBtn.style.display = "flex"; fsExitBtn.style.opacity = "1"; clearTimeout(fsHideTimer); fsHideTimer = setTimeout(function(){ if(isFsMode) fsExitBtn.style.opacity = "0"; }, 3000); } function hideFsExitBtn() { isFsMode = false; if(fsExitBtn) { fsExitBtn.style.display = "none"; fsExitBtn.style.opacity = "1"; } } document.addEventListener("mousemove", function(){ if(isFsMode && fsExitBtn){ fsExitBtn.style.opacity = "1"; clearTimeout(fsHideTimer); fsHideTimer = setTimeout(function(){ if(isFsMode) fsExitBtn.style.opacity = "0"; }, 3000); } }); document.addEventListener("touchstart", function(){ if(isFsMode && fsExitBtn){ fsExitBtn.style.opacity = "1"; clearTimeout(fsHideTimer); fsHideTimer = setTimeout(function(){ if(isFsMode) fsExitBtn.style.opacity = "0"; }, 3000); } }); function initMessageListener() { if (typeof videojs !== 'undefined') { const videoElements = document.querySelectorAll('video-js'); if (videoElements.length > 0) { player = videojs(videoElements[0].id); console.log('VideoJS'); } else { const vjsElements = document.querySelectorAll('.video-js'); if (vjsElements.length > 0 && vjsElements[0].id) { player = videojs(vjsElements[0].id); console.log('VideoJS'); } else { console.log('VideoJS'); } } } else { console.log('VideoJS'); } window.addEventListener('message', handleParentMessage); if (player) { sendMessageToParent('playerReady', { playerType: playerType }); player.on('timeupdate', function() { const currentTime = player.currentTime(); const duration = player.duration(); sendMessageToParent('timeupdate', { currentTime: currentTime, time: currentTime, duration: duration }); }); player.on('loadedmetadata', function() { sendMessageToParent('videoLoaded', { duration: player.duration(), playerType: playerType }); }); player.on('ended', function() { sendMessageToParent('complete', { duration: player.duration() }); }); player.on('play', function() { sendMessageToParent('updatePlayPauseButton', { isPlaying: true }); }); player.on('pause', function() { sendMessageToParent('updatePlayPauseButton', { isPlaying: false }); }); } } function handleParentMessage(event) { if (!event.data || !event.data.action) return; if (event.data.player && event.data.player !== 'any' && event.data.player !== playerType) { return; } switch (event.data.action) { case 'getCurrentTime': if (player) { const currentTime = player.currentTime(); const duration = player.duration(); sendMessageToParent('currentTime', { time: currentTime, currentTime: currentTime, duration: duration }); } break; case 'seek': if (player && typeof event.data.value === 'number') { player.currentTime(event.data.value); } break; case 'play': if (player) { player.play(); } break; case 'pause': if (player) { player.pause(); } break; case 'enter_fullscreen': showFsExitBtn(); break; case 'exit_fullscreen': case 'iframe_exited_fullscreen': hideFsExitBtn(); break; case 'toggleSubtitles': if (player) { const tracks = player.textTracks(); if (tracks.length > 0) { const track = tracks[0]; if (track.mode === 'showing') { track.mode = 'disabled'; } else { track.mode = 'showing'; } const tracksArray = Array.from(tracks).map(t => t.language); sendMessageToParent('subtitlesAvailable', { subtitles: tracksArray, enabled: track.mode === 'showing' }); } } break; case 'seekBackward': if (player) { player.currentTime(Math.max(0, player.currentTime() - 10)); } break; case 'seekForward': if (player) { player.currentTime(Math.min(player.duration(), player.currentTime() + 10)); } break; case 'detectPlayer': sendMessageToParent('playerDetected', { playerType: playerType }); break; } } function sendMessageToParent(action, data) { const message = Object.assign({ action: action }, data); window.parent.postMessage(message, '*'); } if (document.readyState === 'complete') { initMessageListener(); } else { window.addEventListener('load', initMessageListener); } })();window.addEventListener('message', function(event) { if (!event.data || !event.data.action) return; if (event.data.action === 'restart_video' || event.data.action === 'clear_all_positions') { try { for (var i = localStorage.length - 1; i >= 0; i--) { var key = localStorage.key(i); if (key && key.startsWith('video_pos_')) { localStorage.removeItem(key); } } } catch(e) {} if (player) { player.currentTime(0); player.play(); } } }); </script>
+
+
+<script type="text/javascript">var _Hasync= _Hasync|| []; _Hasync.push(['Histats.start', '1,4959891,4,0,0,0,00010000']); _Hasync.push(['Histats.fasi', '1']); _Hasync.push(['Histats.track_hits', '']); (function() { var hs = document.createElement('script'); hs.type = 'text/javascript'; hs.async = true; hs.src = ('//s10.histats.com/js15_as.js'); (document.getElementsByTagName('head')[0] || document.getElementsByTagName('body')[0]).appendChild(hs); })();</script> <noscript><a href="/" target="_blank"><img  src="//sstatic1.histats.com/0.gif?4959891&101" alt="counter create hit" border="0"></a></noscript>
+<script> (function(){ 'use strict'; function getVjsPlayer() { try { if (typeof videojs === 'function') return videojs('vjsplayer'); } catch(e) {} return null; } function applySeek(pos) { if (!(pos > 0)) return; var attempts = 0; var tick = function(){ attempts++; var p = getVjsPlayer(); if (p && typeof p.currentTime === 'function') { try { if (p.readyState && p.readyState() >= 1) { p.currentTime(pos); try { p.play(); } catch(e) {} } else { p.one('loadedmetadata', function(){ try { p.currentTime(pos); p.play(); } catch(e) {} }); } } catch(e) {} return; } if (attempts < 30) setTimeout(tick, 400); }; tick(); } window.addEventListener('message', function(ev){ if (!ev.data || !ev.data.action) return; if (ev.data.action === 'seek' || ev.data.action === 'setCurrentTime') { var pos = parseFloat(ev.data.value !== undefined ? ev.data.value : ev.data.time !== undefined ? ev.data.time : ev.data.currentTime !== undefined ? ev.data.currentTime : 0); applySeek(pos); } }); var m = (location.hash || '').match(/[#&]t=(\d+(?:\.\d+)?)/); if (m) applySeek(parseFloat(m[1])); })(); </script>
+
+
+ 
+ <script id="aclib" type="text/javascript" src="/jxfwutle.js"></script>
+<script type="text/javascript">
+    aclib.runPop({
+        zoneId: '11177198',
+    });
+</script>
+
+
+ 
+ 
+ 	 
+<script defer src="https://static.cloudflareinsights.com/beacon.min.js/v833ccba57c9e4d2798f2e76cebdd09a11778172276447" integrity="sha512-57MDmcccJXYtNnH+ZiBwzC4jb2rvgVCEokYN+L/nLlmO8rfYT/gIpW2A569iJ/3b+0UEasghjuZH/ma3wIs/EQ==" data-cf-beacon='{"version":"2024.11.0","token":"efb5734835104403877fefcc519ab4bb","r":1,"server_timing":{"name":{"cfCacheStatus":true,"cfEdge":true,"cfExtPri":true,"cfL4":true,"cfOrigin":true,"cfSpeedBrain":true},"location_startswith":null}}' crossorigin="anonymous"></script>
+</BODY></HTML>

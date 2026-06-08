@@ -2,95 +2,104 @@
 <html lang="fr" xmlns:th="http://www.thymeleaf.org">
 <head th:replace="~{fragments/navbar :: head(${anime.title})}"></head>
 <body>
-
 <nav th:replace="~{fragments/navbar :: navbar}"></nav>
 
 <div class="main-content">
-
-  <!-- Back link -->
   <a href="/" class="back-link" id="back-btn">
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
-    Retour à la recherche
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15 18-6-6 6-6"/></svg>
+    Retour
   </a>
 
-  <!-- Anime Hero -->
+  <!-- Hero -->
   <div class="anime-hero fade-in">
-
-    <!-- Poster -->
     <div class="anime-poster">
       <div class="poster-glow"></div>
-      <img
-        th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
-        th:src="${anime.imageUrl}"
-        th:alt="${anime.title}"
-        onerror="this.style.display='none'; document.getElementById('poster-placeholder').style.display='flex';"
-      />
-      <div
-        id="poster-placeholder"
-        class="anime-poster-placeholder"
-        th:style="${anime.imageUrl == null or anime.imageUrl.isEmpty()} ? 'display:flex' : 'display:none'"
-      >🎬</div>
+      <img th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
+           th:src="${anime.imageUrl}" th:alt="${anime.title}"
+           onerror="this.style.display='none';document.getElementById('poster-placeholder').style.display='flex';"/>
+      <div id="poster-placeholder" class="anime-poster-placeholder"
+           th:style="${anime.imageUrl == null or anime.imageUrl.isEmpty()} ? 'display:flex' : 'display:none'">🎬</div>
     </div>
 
-    <!-- Info -->
     <div class="anime-info">
       <h1 class="anime-title" id="anime-title" th:text="${anime.title}">Titre</h1>
+      <p th:if="${anime.originalTitle != null and !anime.originalTitle.isEmpty()}"
+         class="anime-original-title" th:text="${anime.originalTitle}"></p>
 
-      <p
-        th:if="${anime.originalTitle != null and !anime.originalTitle.isEmpty()}"
-        class="anime-original-title"
-        th:text="${anime.originalTitle}"
-      ></p>
-
-      <!-- Meta chips -->
       <div class="anime-meta-chips">
-        <span
-          th:if="${anime.version != null and !anime.version.isEmpty()}"
-          class="chip highlight"
-        >
+        <span th:if="${anime.version != null and !anime.version.isEmpty()}" class="chip highlight">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"/></svg>
           <span th:text="${anime.version}">VOSTFR</span>
         </span>
-        <span
-          th:if="${anime.studio != null and !anime.studio.isEmpty()}"
-          class="chip"
-        >
+        <span th:if="${anime.studio != null and !anime.studio.isEmpty()}" class="chip">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20V10M18 20V4M6 20v-4"/></svg>
           <span th:text="${anime.studio}">Studio</span>
         </span>
-        <span
-          th:each="genre : ${anime.genres}"
-          class="chip"
-          th:text="${genre}"
-        ></span>
+        <span th:each="genre : ${anime.genres}" class="chip" th:text="${genre}"></span>
         <span class="chip highlight-count">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="20" height="15" x="2" y="7" rx="2" ry="2"/><polyline points="17 2 12 7 7 2"/></svg>
           <span th:text="${anime.episodes.size()} + ' épisode(s)'">0 épisodes</span>
         </span>
+        <!-- Badge source -->
+        <span th:if="${source == 'voir-anime'}" class="chip chip-source">voir-anime.to</span>
+        <span th:unless="${source == 'voir-anime'}" class="chip chip-source">french-manga.net</span>
+      </div>
+
+      <!-- Actions: Favoris + Lecteur Plyr -->
+      <div class="anime-actions">
+        <button id="fav-btn" class="btn btn-fav"
+                th:classappend="${isFavorite} ? ' active' : ''"
+                th:data-url="${anime.url}"
+                th:data-title="${anime.title}"
+                th:data-image="${anime.imageUrl}"
+                th:data-source="${source != null ? source : 'french-manga'}"
+                onclick="toggleFavorite(this)">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+          <span th:text="${isFavorite} ? 'Dans Ma Liste' : 'Ajouter à Ma Liste'">Ma Liste</span>
+        </button>
+
+        <!-- Auto-download toggle (visible si favori) -->
+        <label th:if="${isFavorite}" class="auto-dl-label" title="Télécharger automatiquement les nouveaux épisodes">
+          <input type="checkbox" id="auto-dl-toggle"
+                 th:data-url="${anime.url}"
+                 onchange="toggleAutoDownload(this)"/>
+          <span>Auto-DL</span>
+        </label>
       </div>
 
       <!-- Synopsis -->
-      <div
-        th:if="${anime.synopsis != null and !anime.synopsis.isEmpty()}"
-        class="anime-synopsis"
-      >
+      <div th:if="${anime.synopsis != null and !anime.synopsis.isEmpty()}" class="anime-synopsis">
         <h3 class="synopsis-label">Synopsis</h3>
         <p th:text="${anime.synopsis}"></p>
       </div>
-      <div
-        th:unless="${anime.synopsis != null and !anime.synopsis.isEmpty()}"
-        class="anime-synopsis empty"
-      >
+      <div th:unless="${anime.synopsis != null and !anime.synopsis.isEmpty()}" class="anime-synopsis empty">
         <p>Synopsis non disponible.</p>
       </div>
 
-      <!-- Episode Actions -->
+      <!-- Lecteur vidéo Plyr -->
+      <div id="player-section" class="player-section" style="display:none;">
+        <h3 class="section-label">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+          Lecteur intégré
+        </h3>
+        <div class="player-wrap">
+          <video id="plyr-player" controls crossorigin playsinline>
+            <source id="player-source" src="" type="video/mp4"/>
+            <track id="player-subtitle" kind="subtitles" label="Français" srclang="fr" src="" default/>
+          </video>
+        </div>
+        <button class="btn btn-sm" onclick="closePlayer()">✕ Fermer le lecteur</button>
+      </div>
+
+      <!-- Episodes -->
       <div th:if="${!anime.episodes.isEmpty()}">
         <div class="episode-section-header">
           <h2 class="episode-section-title">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             Épisodes disponibles
           </h2>
+          <!-- Filtre version -->
+          <div class="version-filter" id="version-filter"></div>
         </div>
 
         <div class="select-bar">
@@ -99,92 +108,119 @@
             Tout sélectionner
           </label>
           <span class="selected-info" id="selected-count-text">0 sélectionné(s)</span>
-          <div class="dl-controls-wrap" style="display:flex;align-items:center;gap:10px;">
-            <input type="datetime-local" id="schedule-input" class="input-premium" title="Planifier l'heure de début du téléchargement" style="background:rgba(255,255,255,0.08);border:1px solid rgba(255,255,255,0.15);border-radius:6px;color:#fff;padding:4px 8px;font-size:0.85rem;outline:none;" />
-            <button
-              id="dl-selected-btn"
-              class="btn btn-primary btn-sm"
-              onclick="downloadSelected()"
-              disabled
-            >
+          <div class="dl-controls-wrap">
+            <input type="datetime-local" id="schedule-input" class="input-premium"
+                   title="Planifier le téléchargement"
+                   style="background:rgba(var(--card-rgb),0.5);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:4px 8px;font-size:0.85rem;outline:none;"/>
+            <button id="dl-selected-btn" class="btn btn-primary btn-sm" onclick="downloadSelected()" disabled>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
               Télécharger la sélection
             </button>
           </div>
         </div>
 
-        <!-- Episode list -->
         <div class="episode-list" id="episode-list">
-          <div
-            th:each="ep, epStat : ${anime.episodes}"
-            th:id="'ep-row-' + ${ep.number} + '-' + ${ep.version}"
-            class="episode-item"
-            th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}"
-            th:data-num="${ep.number}"
-            th:data-title="${ep.title}"
-            th:data-version="${ep.version}"
-            th:data-subtitle="${ep.subtitleUrl}"
-            th:style="'animation-delay: ' + ${epStat.index * 0.03} + 's'"
-          >
-            <input
-              type="checkbox"
-              class="episode-check"
-              th:id="'ep-check-' + ${ep.number} + '-' + ${ep.version}"
-              th:value="${ep.number}"
-              onchange="onEpisodeCheckChange()"
-            />
+          <div th:each="ep, epStat : ${anime.episodes}"
+               th:id="'ep-row-' + ${ep.number} + '-' + ${ep.version}"
+               class="episode-item"
+               th:classappend="(${downloadedEpisodes != null and downloadedEpisodes.contains(ep.number + '-' + ep.version)} ? ' ep-downloaded' : '') + (${watchedEpisodes != null and watchedEpisodes.contains(ep.number + '-' + ep.version)} ? ' ep-watched' : '')"
+               th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}"
+               th:data-num="${ep.number}"
+               th:data-title="${ep.title}"
+               th:data-version="${ep.version}"
+               th:data-subtitle="${ep.subtitleUrl}"
+               th:data-player="${ep.playerUrl}"
+               th:style="'animation-delay: ' + ${epStat.index * 0.03} + 's'">
+
+            <input type="checkbox" class="episode-check"
+                   th:id="'ep-check-' + ${ep.number} + '-' + ${ep.version}"
+                   th:value="${ep.number}" onchange="onEpisodeCheckChange()"/>
+
             <span class="episode-num" th:text="'Ep ' + ${ep.number}">Ep 1</span>
             <span class="episode-title" th:text="${ep.title}">Épisode 1</span>
-            <span
-              th:if="${ep.version != null and !ep.version.isEmpty()}"
-              class="episode-version-badge"
-              th:classappend="${#strings.containsIgnoreCase(ep.version,'VOSTFR')} ? 'ver-vostfr' : 'ver-vf'"
-              th:text="${ep.version}"
-            ></span>
+
+            <span th:if="${ep.version != null and !ep.version.isEmpty()}"
+                  class="episode-version-badge"
+                  th:classappend="${#strings.containsIgnoreCase(ep.version,'VOSTFR')} ? 'ver-vostfr' : 'ver-vf'"
+                  th:text="${ep.version}"></span>
+
+            <!-- Icone téléchargé -->
+            <span th:if="${downloadedEpisodes != null and downloadedEpisodes.contains(ep.number + '-' + ep.version)}"
+                  class="ep-done-badge" title="Déjà téléchargé">✓</span>
             
-            <!-- File size calculation (loaded asynchronously in app.js) -->
-            <span class="episode-size" th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}">Taille en cours...</span>
-            
-            <!-- Selective subtitles option -->
-            <label class="subtitle-cb-label" style="display:inline-flex;align-items:center;gap:6px;font-size:0.75rem;color:var(--text-secondary);cursor:pointer;user-select:none;margin-left:5px;margin-right:10px;background:rgba(255,255,255,0.03);padding:3px 8px;border-radius:6px;border:1px solid rgba(255,255,255,0.05);height:26px;">
-              <input type="checkbox" class="subtitle-check" style="cursor:pointer;accent-color:var(--accent);margin:0;" />
+            <!-- Icone vu -->
+            <span th:if="${watchedEpisodes != null and watchedEpisodes.contains(ep.number + '-' + ep.version)}"
+                  class="ep-watched-badge" title="Déjà vu">👁️ Vu</span>
+
+            <!-- Taille -->
+            <span class="episode-size"
+                  th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}">
+              —
+            </span>
+
+            <!-- Sous-titres checkbox -->
+            <label class="subtitle-cb-label">
+              <input type="checkbox" class="subtitle-check"/>
               <span>Sous-titres</span>
             </label>
 
-            <button
-              class="btn btn-download-ep episode-dl-btn"
-              th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}"
-              th:data-num="${ep.number}"
-              th:data-title="${ep.title}"
-              th:data-subtitle="${ep.subtitleUrl}"
-              onclick="downloadEpisode(this)"
-            >
+            <!-- Bouton lecture Plyr -->
+            <button class="btn btn-play-ep"
+                    th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}"
+                    th:data-num="${ep.number}"
+                    onclick="playEpisode(this)" title="Lire en streaming">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="5 3 19 12 5 21 5 3"/></svg>
+            </button>
+
+            <!-- Bouton téléchargement -->
+            <button class="btn btn-download-ep episode-dl-btn"
+                    th:data-url="${ep.downloadPageUrl != null and !ep.downloadPageUrl.isEmpty()} ? ${ep.downloadPageUrl} : ${ep.playerUrl}"
+                    th:data-num="${ep.number}"
+                    th:data-title="${ep.title}"
+                    th:data-subtitle="${ep.subtitleUrl}"
+                    onclick="downloadEpisode(this)" title="Télécharger">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
             </button>
           </div>
         </div>
       </div>
 
-      <!-- No episodes -->
       <div th:if="${anime.episodes.isEmpty()}" class="empty-state" style="padding:2rem 0;">
-        <div class="empty-icon">
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>
-        </div>
+        <div class="empty-icon"><svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><rect width="20" height="16" x="2" y="4" rx="2"/></svg></div>
         <h3>Aucun épisode trouvé</h3>
-        <p>Les épisodes n'ont pas pu être extraits pour cet anime.</p>
       </div>
     </div>
   </div>
-
 </div>
 
-<!-- Toast container -->
+<!-- Modal qualités myTV -->
+<div id="quality-modal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Choisir la qualité</h3>
+    <div id="quality-list" class="quality-list"></div>
+    <button class="btn btn-sm" onclick="document.getElementById('quality-modal').style.display='none'">Annuler</button>
+  </div>
+</div>
+
+<!-- Modal sous-titres multiples -->
+<div id="subtitle-modal" class="modal" style="display:none;">
+  <div class="modal-content">
+    <h3>Choisir les sous-titres</h3>
+    <div id="subtitle-list" class="subtitle-list"></div>
+    <button class="btn btn-sm" onclick="document.getElementById('subtitle-modal').style.display='none'">Fermer</button>
+  </div>
+</div>
+
 <div class="toast-container" id="toast-container"></div>
 
-<!-- Pass anime title to JS -->
 <script th:inline="javascript">
   const ANIME_NAME = /*[[${anime.title}]]*/ 'Anime';
+  const ANIME_URL  = /*[[${anime.url}]]*/ '';
+  const SOURCE     = /*[[${source}]]*/ 'french-manga';
 </script>
+<!-- Plyr CSS/JS depuis CDN -->
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css"/>
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="/js/app.js"></script>
 </body>
 </html>

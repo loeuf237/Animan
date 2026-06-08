@@ -17,9 +17,6 @@ public class AppConfig {
     @Value("${animan.max-concurrent-downloads}")
     private int maxConcurrentDownloads;
 
-    /**
-     * Pool de threads dédié aux téléchargements.
-     */
     @Bean(name = "downloadExecutor")
     public Executor downloadExecutor() {
         ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
@@ -31,15 +28,10 @@ public class AppConfig {
         return executor;
     }
 
-    /**
-     * Crée le répertoire de téléchargement au démarrage.
-     */
     @Bean
     public File downloadDirectory() {
         File dir = new File(downloadDir);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
+        if (!dir.exists()) dir.mkdirs();
         return dir;
     }
 }

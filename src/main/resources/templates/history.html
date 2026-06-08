@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="fr" xmlns:th="http://www.thymeleaf.org">
+<head th:replace="~{fragments/navbar :: head('Historique')}"></head>
+<body>
+<nav th:replace="~{fragments/navbar :: navbar}"></nav>
+<div class="main-content">
+
+  <div class="page-header fade-in">
+    <h1 class="page-title">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+      Historique des téléchargements
+    </h1>
+    <p class="page-sub" th:text="${tasks.size()} + ' entrée(s) au total'">0 entrées</p>
+  </div>
+
+  <div th:if="${tasks == null or tasks.isEmpty()}" class="empty-state fade-in">
+    <div class="empty-icon">📋</div>
+    <h3>Aucun historique</h3>
+    <p>Les téléchargements terminés apparaîtront ici.</p>
+    <a href="/" class="btn btn-primary">Rechercher des animés</a>
+  </div>
+
+  <div th:unless="${tasks == null or tasks.isEmpty()}" class="fade-in">
+    <!-- Filtres -->
+    <div class="history-filters">
+      <button class="filter-btn active" data-status="ALL" onclick="filterHistory(this)">Tous</button>
+      <button class="filter-btn" data-status="COMPLETED" onclick="filterHistory(this)">Terminés</button>
+      <button class="filter-btn" data-status="FAILED" onclick="filterHistory(this)">Échoués</button>
+      <button class="filter-btn" data-status="CANCELLED" onclick="filterHistory(this)">Annulés</button>
+    </div>
+
+    <div class="history-table-wrap">
+      <table class="history-table">
+        <thead>
+          <tr>
+            <th>Animé</th>
+            <th>Épisode</th>
+            <th>Fichier</th>
+            <th>Taille</th>
+            <th>Statut</th>
+            <th>Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr th:each="task : ${tasks}"
+              th:data-status="${task.status.name()}"
+              th:classappend="${task.status.name() == 'COMPLETED'} ? 'row-ok' : (${task.status.name() == 'FAILED'} ? 'row-err' : 'row-other')">
+            <td th:text="${task.animeName}">Anime</td>
+            <td th:text="'Ep ' + ${task.episodeNumber}">Ep 1</td>
+            <td class="td-file" th:text="${task.fileName}">file.mp4</td>
+            <td>
+              <span th:if="${task.totalBytes > 0}"
+                    th:text="${#numbers.formatDecimal(task.totalBytes / 1048576.0, 1, 1)} + ' MB'">0 MB</span>
+              <span th:unless="${task.totalBytes > 0}">—</span>
+            </td>
+            <td>
+              <span class="status-badge"
+                    th:classappend="${task.status.name() == 'COMPLETED'} ? 'badge-ok' : (${task.status.name() == 'FAILED'} ? 'badge-err' : 'badge-other')"
+                    th:text="${task.status}">STATUS</span>
+            </td>
+            <td th:text="${task.completedAt != null ? #temporals.format(task.completedAt,'dd/MM/yyyy HH:mm') : #temporals.format(task.createdAt,'dd/MM/yyyy HH:mm')}">date</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+<div class="toast-container" id="toast-container"></div>
+<script src="/js/app.js"></script>
+<script>
+document.getElementById('nav-history')?.classList.add('active');
+function filterHistory(btn) {
+  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  const status = btn.dataset.status;
+  document.querySelectorAll('.history-table tbody tr').forEach(tr => {
+    tr.style.display = (status === 'ALL' || tr.dataset.status === status) ? '' : 'none';
+  });
+}
+</script>
+</body>
+</html>

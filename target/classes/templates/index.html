@@ -1,138 +1,202 @@
 <!DOCTYPE html>
 <html lang="fr" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/navbar :: head('Recherche')}"></head>
+<head th:replace="~{fragments/navbar :: head('Accueil')}"></head>
 <body>
-
 <nav th:replace="~{fragments/navbar :: navbar}"></nav>
-
 <div class="main-content">
 
-  <!-- Hero / Search -->
-  <section class="hero">
-    <div class="hero-glow"></div>
-    <h1 class="hero-title">
-      Trouve &amp; télécharge tes<br>
-      <span class="gradient-text">animés préférés</span>
-    </h1>
-    <p class="hero-subtitle">Recherche parmi des milliers d'animés et télécharge les épisodes en quelques clics.</p>
+  <!-- Hero Search -->
+  <div class="hero fade-in">
+    <h1 class="hero-title">🎌 Animan</h1>
+    <p class="hero-subtitle">Téléchargez vos animés préférés en VF &amp; VOSTFR</p>
 
-    <div class="search-container">
-      <form id="search-form" class="search-form" th:action="@{/search}" method="get" autocomplete="off">
-        <div class="search-icon-wrap">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-        </div>
-        <input
-          id="search-input"
-          class="search-input"
-          type="text"
-          name="q"
-          th:value="${query}"
-          placeholder="Naruto, One Piece, Dragon Ball…"
-          required
-          autofocus
-        />
-        <button type="submit" class="search-btn" id="search-submit-btn">
-          <span id="search-btn-text">Rechercher</span>
-          <div id="search-spinner" class="btn-spinner" style="display:none"></div>
-        </button>
-      </form>
-    </div>
-  </section>
+    <form class="search-form" action="/search" method="get">
+      <div class="search-input-wrap">
+        <svg class="search-icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <input type="text" name="q" id="search-input" class="search-input"
+               placeholder="Rechercher un animé..." autocomplete="off"
+               th:value="${query}"/>
+        <div class="search-suggestions" id="search-suggestions"></div>
+      </div>
 
-  <!-- Alert on error -->
-  <div th:if="${error}" class="alert alert-error">
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="m15 9-6 6M9 9l6 6"/></svg>
-    <span th:text="${error}">Erreur</span>
+      <!-- Source selector -->
+      <div class="source-tabs">
+        <label class="source-tab">
+          <input type="radio" name="source" value="french-manga"
+                 th:checked="${source == null or source == 'french-manga'}"/>
+          <span>french-manga.net</span>
+        </label>
+        <label class="source-tab">
+          <input type="radio" name="source" value="voir-anime"
+                 th:checked="${source == 'voir-anime'}"/>
+          <span>voir-anime.to</span>
+        </label>
+      </div>
+
+      <button type="submit" class="btn btn-primary btn-search">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        Rechercher
+      </button>
+    </form>
   </div>
 
-  <!-- Search Results -->
-  <section th:if="${results != null}" id="results-section" class="fade-in">
-    <div class="section-header">
-      <h2 class="section-title">Résultats</h2>
-      <span class="result-count">
-        <span th:text="${results.size()}">0</span> résultat(s)
-        <span th:if="${query}"> pour « <span th:text="${query}"></span> »</span>
-      </span>
-    </div>
-
-    <!-- Empty results -->
-    <div th:if="${results.isEmpty()}" class="empty-state">
-      <div class="empty-icon">
-        <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" opacity="0.3"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
-      </div>
-      <h3>Aucun résultat trouvé</h3>
-      <p>Essayez un autre terme de recherche ou vérifiez l'orthographe.</p>
-    </div>
-
-    <!-- Grid of cards -->
-    <div th:unless="${results.isEmpty()}" class="anime-grid" id="anime-grid">
-      <a
-        th:each="anime, animeStat : ${results}"
-        th:href="@{/anime(url=${anime.url})}"
-        class="anime-card"
-        th:id="'anime-' + ${animeStat.index}"
-        th:title="${anime.title}"
-        th:style="'animation-delay: ' + ${animeStat.index * 0.05} + 's'"
-      >
-        <div class="anime-card-img-wrap">
-          <img
-            th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
-            th:src="${anime.imageUrl}"
-            th:alt="${anime.title}"
-            class="anime-card-img"
-            loading="lazy"
-            onerror="this.style.display='none'; this.nextElementSibling.style.display='flex';"
-          />
-          <div
-            th:if="${anime.imageUrl == null or anime.imageUrl.isEmpty()}"
-            class="anime-card-img-placeholder"
-          >🎬</div>
-          <div class="anime-card-img-placeholder" style="display:none;">🎬</div>
-
-          <!-- Overlay badges -->
-          <div class="card-badges">
-            <span
-              th:if="${anime.version != null and !anime.version.isEmpty()}"
-              th:text="${anime.version}"
-              th:classappend="${#strings.containsIgnoreCase(anime.version,'VOSTFR')} ? 'badge badge-vostfr' : 'badge badge-vf'"
-            >VF</span>
-            <span
-              th:if="${anime.type != null and !anime.type.isEmpty()}"
-              th:text="${anime.type}"
-              th:classappend="${#strings.containsIgnoreCase(anime.type,'Film')} ? 'badge badge-film' : 'badge badge-anime'"
-            >Anime</span>
+  <!-- Favoris rapides -->
+  <div th:if="${favorites != null and !favorites.isEmpty()}" class="section fade-in">
+    <h2 class="section-title">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>
+      Ma Liste
+    </h2>
+    <div class="results-grid">
+      <div th:each="fav : ${favorites}" class="anime-card fade-in">
+        <a th:href="'/anime?url=' + ${fav.url} + '&source=' + ${fav.source != null ? fav.source : 'french-manga'}" class="card-link">
+          <div class="card-poster">
+            <img th:if="${fav.imageUrl != null and !fav.imageUrl.isEmpty()}"
+                 th:src="${fav.imageUrl}" th:alt="${fav.title}" loading="lazy"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+            <div class="card-poster-placeholder">🎬</div>
+            <div class="card-overlay">
+              <span class="fav-badge">❤️ Favori</span>
+            </div>
           </div>
-
-          <!-- Episode info overlay -->
-          <div
-            th:if="${anime.episodeInfo != null and !anime.episodeInfo.isEmpty()}"
-            class="card-ep-info"
-            th:text="${anime.episodeInfo}"
-          ></div>
-        </div>
-
-        <div class="anime-card-body">
-          <div class="anime-card-title" th:text="${anime.title}">Titre</div>
-        </div>
-      </a>
+          <div class="card-info">
+            <h3 class="card-title" th:text="${fav.title}">Titre</h3>
+            <span th:if="${fav.autoDownload}" class="chip chip-auto">Auto-DL</span>
+          </div>
+        </a>
+      </div>
     </div>
-  </section>
+  </div>
 
-  <!-- Welcome state (no search yet) -->
-  <div th:unless="${results != null}" class="empty-state welcome-state">
-    <div class="welcome-visual">
-      <div class="welcome-orb"></div>
-      <div class="welcome-icon">🎌</div>
+  <!-- Dernières Sorties (visible si pas de recherche active) -->
+  <div th:if="${results == null}" class="section fade-in">
+    <div class="releases-tabs-header">
+      <h2 class="section-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Dernières Sorties
+      </h2>
+      <div class="release-tabs">
+        <button class="tab-btn active" onclick="switchReleaseTab('french-manga', this)">french-manga.net</button>
+        <button class="tab-btn" onclick="switchReleaseTab('voir-anime', this)">voir-anime.to</button>
+      </div>
     </div>
-    <h3>Prêt à explorer</h3>
-    <p>Tapez le nom d'un anime pour commencer votre recherche.</p>
+
+    <!-- Grille French Manga -->
+    <div id="latest-french-manga" class="releases-content active">
+      <div class="results-grid" th:if="${latestFrenchManga != null and !latestFrenchManga.isEmpty()}">
+        <div th:each="anime : ${latestFrenchManga}" class="anime-card fade-in">
+          <a th:href="'/anime?url=' + ${anime.url} + '&amp;source=french-manga'" class="card-link">
+            <div class="card-poster">
+              <img th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
+                   th:src="${anime.imageUrl}" th:alt="${anime.title}" loading="lazy"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+              <div class="card-poster-placeholder">🎬</div>
+              <div class="card-overlay">
+                <span th:if="${anime.version != null and !anime.version.isEmpty()}"
+                      class="version-badge" th:text="${anime.version}">VOSTFR</span>
+                <span th:if="${anime.episodeInfo != null and !anime.episodeInfo.isEmpty()}"
+                      class="ep-badge" th:text="${anime.episodeInfo}"></span>
+              </div>
+            </div>
+            <div class="card-info">
+              <h3 class="card-title" th:text="${anime.title}">Titre</h3>
+              <span class="card-type" th:text="${anime.type}">Anime</span>
+            </div>
+          </a>
+        </div>
+      </div>
+      <div th:if="${latestFrenchManga == null or latestFrenchManga.isEmpty()}" class="empty-state">
+        <div class="empty-icon">⏳</div>
+        <h3>Mise à jour du flux...</h3>
+        <p>Le scraper french-manga.net prépare les nouveautés, rechargez la page dans un instant.</p>
+      </div>
+    </div>
+
+    <!-- Grille Voir Anime -->
+    <div id="latest-voir-anime" class="releases-content">
+      <div class="results-grid" th:if="${latestVoirAnime != null and !latestVoirAnime.isEmpty()}">
+        <div th:each="anime : ${latestVoirAnime}" class="anime-card fade-in">
+          <a th:href="'/anime?url=' + ${anime.url} + '&amp;source=voir-anime'" class="card-link">
+            <div class="card-poster">
+              <img th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
+                   th:src="${anime.imageUrl}" th:alt="${anime.title}" loading="lazy"
+                   onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+              <div class="card-poster-placeholder">🎬</div>
+              <div class="card-overlay">
+                <span th:if="${anime.version != null and !anime.version.isEmpty()}"
+                      class="version-badge" th:text="${anime.version}">VOSTFR</span>
+                <span th:if="${anime.episodeInfo != null and !anime.episodeInfo.isEmpty()}"
+                      class="ep-badge" th:text="${anime.episodeInfo}"></span>
+              </div>
+            </div>
+            <div class="card-info">
+              <h3 class="card-title" th:text="${anime.title}">Titre</h3>
+              <span class="card-type" th:text="${anime.type}">Anime</span>
+            </div>
+          </a>
+        </div>
+      </div>
+      <div th:if="${latestVoirAnime == null or latestVoirAnime.isEmpty()}" class="empty-state">
+        <div class="empty-icon">⏳</div>
+        <h3>Mise à jour du flux...</h3>
+        <p>Le scraper voir-anime.to charge le premier démarrage via Playwright, rechargez dans un instant.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Résultats de recherche -->
+  <div th:if="${results != null}" class="section fade-in">
+    <div class="results-header">
+      <h2 class="section-title" th:if="${!results.isEmpty()}">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+        <span th:text="${results.size()} + ' résultat(s) pour &quot;' + ${query} + '&quot;'">Résultats</span>
+      </h2>
+      <p th:if="${results.isEmpty()}" class="no-results">
+        Aucun résultat trouvé pour "<span th:text="${query}"></span>". Essayez l'autre source.
+      </p>
+    </div>
+
+    <div class="results-grid" th:if="${!results.isEmpty()}">
+      <div th:each="anime : ${results}" class="anime-card fade-in">
+        <a th:href="'/anime?url=' + ${anime.url} + '&amp;source=' + ${source != null ? source : 'french-manga'}" class="card-link">
+          <div class="card-poster">
+            <img th:if="${anime.imageUrl != null and !anime.imageUrl.isEmpty()}"
+                 th:src="${anime.imageUrl}" th:alt="${anime.title}" loading="lazy"
+                 onerror="this.style.display='none';this.nextElementSibling.style.display='flex';"/>
+            <div class="card-poster-placeholder">🎬</div>
+            <div class="card-overlay">
+              <span th:if="${anime.version != null and !anime.version.isEmpty()}"
+                    class="version-badge" th:text="${anime.version}">VOSTFR</span>
+              <span th:if="${anime.episodeInfo != null and !anime.episodeInfo.isEmpty()}"
+                    class="ep-badge" th:text="${anime.episodeInfo}"></span>
+            </div>
+          </div>
+          <div class="card-info">
+            <h3 class="card-title" th:text="${anime.title}">Titre</h3>
+            <span class="card-type" th:text="${anime.type}">Anime</span>
+          </div>
+        </a>
+      </div>
+    </div>
   </div>
 
 </div>
 
-<!-- Toast container -->
 <div class="toast-container" id="toast-container"></div>
-
 <script src="/js/app.js"></script>
+<script>
+// Activer le lien accueil
+document.getElementById('nav-home')?.classList.add('active');
+
+function switchReleaseTab(source, btn) {
+  document.querySelectorAll('.release-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.querySelectorAll('.releases-content').forEach(grid => grid.classList.remove('active'));
+  if (source === 'french-manga') {
+    document.getElementById('latest-french-manga').classList.add('active');
+  } else {
+    document.getElementById('latest-voir-anime').classList.add('active');
+  }
+}
+</script>
 </body>
 </html>

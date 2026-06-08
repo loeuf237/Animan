@@ -73,6 +73,22 @@ public class DownloadController {
             return ResponseEntity.badRequest().body(Map.of("error", "URL manquante"));
         }
 
+        // Vérification de doublon avec taille correspondante
+        java.io.File existingFile = downloadManager.checkExistingFile(animeName, fileName, episodeNumber);
+        if (existingFile != null) {
+            long localSize = existingFile.length();
+            DownloadManagerService.ResolvedVideoInfo info = downloadManager.getOrResolveEpisodeInfo(url);
+            if (info != null && info.size > 0) {
+                if (localSize == info.size) {
+                    return ResponseEntity.badRequest().body(Map.of(
+                            "success", false,
+                            "alreadyExists", true,
+                            "error", "L'épisode existe déjà sur le disque avec la même taille (" + info.formattedSize + ")."
+                    ));
+                }
+            }
+        }
+
         DownloadTask task = downloadManager.startDownload(animeName, episodeNumber, url, fileName, subtitleUrl, scheduledTime, speedLimit, downloadSubtitles);
 
         String msg = task.getStatus() == DownloadTask.DownloadStatus.SCHEDULED ? 
@@ -251,7 +267,8 @@ public class DownloadController {
     public ResponseEntity<Map<String, Object>> getSettings() {
         return ResponseEntity.ok(Map.of(
                 "maxConcurrentDownloads", downloadManager.getMaxConcurrentDownloads(),
-                "globalSpeedLimit", downloadManager.getGlobalSpeedLimit()
+                "globalSpeedLimit", downloadManager.getGlobalSpeedLimit(),
+                "plexOrganization", downloadManager.isPlexOrganization()
         ));
     }
 
@@ -264,9 +281,11 @@ public class DownloadController {
         try {
             int maxConcurrent = Integer.parseInt(String.valueOf(body.get("maxConcurrentDownloads")));
             long globalLimit = Long.parseLong(String.valueOf(body.get("globalSpeedLimit")));
+            boolean plexOrg = Boolean.parseBoolean(String.valueOf(body.get("plexOrganization")));
             
             downloadManager.setMaxConcurrentDownloads(maxConcurrent);
             downloadManager.setGlobalSpeedLimit(globalLimit);
+            downloadManager.setPlexOrganization(plexOrg);
             
             return ResponseEntity.ok(Map.of("success", true, "message", "Paramètres mis à jour"));
         } catch (Exception e) {
@@ -295,5 +314,29 @@ public class DownloadController {
         } catch (Exception e) {
             return ResponseEntity.ok(Map.of("success", false, "formattedSize", "Erreur résolution", "size", -1));
         }
+    }
+
+    /**
+     * Fait monter une tâche en haut de la file de téléchargement.
+     */
+    @PostMapping("/api/download/{id}/move-to-top")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> moveTaskToTop(@PathVariable String id) {
+        downloadManager.moveTaskToTop(id);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Tâche montée en haut de la file"));
+    }
+
+    /**
+     * Fait monter tous les épisodes d'une série en haut de la file de téléchargement.
+     */
+    @PostMapping("/api/download/move-series-to-top")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> moveSeriesToTop(@RequestBody Map<String, String> body) {
+        String animeName = body.get("animeName");
+        if (animeName == null || animeName.isBlank()) {
+            return ResponseEntity.badRequest().body(Map.of("error", "Nom de la série manquant"));
+        }
+        downloadManager.moveSeriesToTop(animeName);
+        return ResponseEntity.ok(Map.of("success", true, "message", "Série " + animeName + " montée en haut de la file"));
     }
 }

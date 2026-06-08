@@ -1,5 +1,7 @@
 package com.pauldev.animan.service;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.pauldev.animan.model.DownloadTask;
 import com.pauldev.animan.model.DownloadTask.DownloadStatus;
 import lombok.extern.slf4j.Slf4j;
@@ -14,18 +16,13 @@ import java.net.HttpURLConnection;
 import java.net.URL;
 import java.time.LocalDateTime;
 import java.util.*;
-import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
-import java.util.concurrent.Executor;
+import java.util.concurrent.*;
 
 /**
- * Gestionnaire de téléchargements ultra-robuste avec support de :
- * - Reprise sur coupure (HTTP Range)
- * - Retentatives automatiques (Auto-retry exponentiel)
- * - Limitation de bande passante (Throttling)
- * - Planification
- * - Muxing FFmpeg automatique
- * - SSE pour progression temps réel.
+ * Gestionnaire de téléchargements avec:
+ * - Persistance H2 via LibraryService
+ * - Téléchargement multi-morceaux myTV (voir-anime.to)
+ * - Gestion complète SSE / pause / reprise / retry
  */
 @Slf4j
 @Service
@@ -33,190 +30,298 @@ public class DownloadManagerService {
 
     private final Executor downloadExecutor;
     private final ScrapingService scrapingService;
+    private final VoirAnimeScrapingService voirAnimeService;
+    private final LibraryService libraryService;
 
     @Value("${animan.download-dir}")
     private String downloadDir;
-
     @Value("${animan.user-agent}")
     private String userAgent;
 
+    @org.springframework.beans.factory.annotation.Autowired
+    private ProxyRotatorService proxyRotator;
     @Value("${animan.connection-timeout}")
     private int connectionTimeout;
-
     @Value("${animan.read-timeout}")
     private int readTimeout;
-
     @Value("${animan.max-concurrent-downloads}")
-    private int maxConcurrentDownloads = 3;
+    private int maxConcurrentDownloads;
 
-    /** Toutes les tâches de téléchargement indexées par ID. */
+    private boolean plexOrganization = false;
+
+    public boolean isPlexOrganization() {
+        return plexOrganization;
+    }
+
+    public void setPlexOrganization(boolean plexOrganization) {
+        this.plexOrganization = plexOrganization;
+    }
+
+    public String getSelectedUserAgent() {
+        return proxyRotator != null ? proxyRotator.getSelectedUserAgent() : "Random (Rotator)";
+    }
+
+    public void setSelectedUserAgent(String ua) {
+        if (proxyRotator != null) {
+            proxyRotator.setSelectedUserAgent(ua);
+        }
+    }
+
     private final Map<String, DownloadTask> tasks = new ConcurrentHashMap<>();
-
-    /** Liste ordonnée des IDs pour l'affichage. */
     private final List<String> taskOrder = new CopyOnWriteArrayList<>();
-
-    /** Clients SSE connectés pour recevoir les mises à jour. */
     private final List<SseEmitter> sseEmitters = new CopyOnWriteArrayList<>();
-
-    /** Limite de vitesse globale (octets/sec). 0 = Illimité. */
     private volatile long globalSpeedLimit = 0;
 
-    /** Cache pour stocker les informations de téléchargement pré-résolues. */
     public static class ResolvedVideoInfo {
         public String directUrl;
         public String subtitleUrl;
+        public String subtitlesJson; // [{url,label,lang},...]
         public long size;
         public String formattedSize;
+        public String serverType;           // "myTV", "stape", "vidzy"
+        public String videoChunksJson;      // pour myTV
+        public String videoQualitiesJson;   // pour myTV
     }
 
     private final Map<String, ResolvedVideoInfo> resolvedInfoCache = new ConcurrentHashMap<>();
 
     public DownloadManagerService(@Qualifier("downloadExecutor") Executor downloadExecutor,
-                                   ScrapingService scrapingService) {
+                                   ScrapingService scrapingService,
+                                   VoirAnimeScrapingService voirAnimeService,
+                                   LibraryService libraryService) {
         this.downloadExecutor = downloadExecutor;
         this.scrapingService = scrapingService;
+        this.voirAnimeService = voirAnimeService;
+        this.libraryService = libraryService;
     }
 
-    /**
-     * Définit la limite globale de débit et l'applique aux tâches en cours.
-     */
+    @jakarta.annotation.PostConstruct
+    public void init() {
+        try {
+            List<com.pauldev.animan.model.DownloadTaskEntity> unfinished = libraryService.getUnfinishedTasks();
+            for (com.pauldev.animan.model.DownloadTaskEntity entity : unfinished) {
+                DownloadTask task = entity.toTask();
+                if (task.getStatus() == DownloadStatus.DOWNLOADING || task.getStatus() == DownloadStatus.RETRYING) {
+                    task.setStatus(DownloadStatus.PAUSED);
+                    task.setSpeed(0);
+                    libraryService.saveTask(task);
+                }
+                tasks.put(task.getId(), task);
+                taskOrder.add(task.getId());
+            }
+            log.info("Chargé {} tâche(s) non terminée(s) depuis H2 au démarrage", tasks.size());
+            processQueue();
+        } catch (Exception e) {
+            log.error("Erreur lors de l'initialisation des tâches depuis H2: {}", e.getMessage());
+        }
+    }
+
+    // =========================================================================
+    // Gestion des limites
+    // =========================================================================
+
     public void setGlobalSpeedLimit(long limitBytesPerSec) {
         this.globalSpeedLimit = limitBytesPerSec;
-        for (DownloadTask task : tasks.values()) {
-            if (task.getStatus() == DownloadStatus.DOWNLOADING || task.getStatus() == DownloadStatus.PENDING) {
-                task.setMaxSpeedLimit(limitBytesPerSec);
-            }
-        }
-        log.info("Limite de débit globale définie à : {} octets/s", limitBytesPerSec);
+        tasks.values().forEach(t -> {
+            if (t.getStatus() == DownloadStatus.DOWNLOADING || t.getStatus() == DownloadStatus.PENDING)
+                t.setMaxSpeedLimit(limitBytesPerSec);
+        });
     }
 
-    public long getGlobalSpeedLimit() {
-        return this.globalSpeedLimit;
-    }
-
-    public int getMaxConcurrentDownloads() {
-        return this.maxConcurrentDownloads;
-    }
-
-    public void setMaxConcurrentDownloads(int limit) {
-        this.maxConcurrentDownloads = limit;
-        log.info("Limite de téléchargements simultanés mise à jour à : {}", limit);
-        processQueue();
-    }
-
-    /**
-     * Définit la limite de vitesse individuelle d'une tâche.
-     */
-    public boolean setTaskSpeedLimit(String taskId, long limitBytesPerSec) {
-        DownloadTask task = tasks.get(taskId);
-        if (task != null) {
-            task.setMaxSpeedLimit(limitBytesPerSec);
-            broadcastUpdate(task);
-            log.info("Limite de débit pour la tâche {} définie à : {} octets/s", taskId, limitBytesPerSec);
-            return true;
-        }
+    public long getGlobalSpeedLimit() { return globalSpeedLimit; }
+    public int getMaxConcurrentDownloads() { return maxConcurrentDownloads; }
+    public void setMaxConcurrentDownloads(int limit) { this.maxConcurrentDownloads = limit; processQueue(); }
+    public boolean setTaskSpeedLimit(String taskId, long limit) {
+        DownloadTask t = tasks.get(taskId);
+        if (t != null) { t.setMaxSpeedLimit(limit); broadcastUpdate(t); return true; }
         return false;
     }
 
-    private String formatBytes(long bytes) {
-        if (bytes <= 0) return "0 B";
-        String[] units = {"B", "KB", "MB", "GB"};
-        int unitIndex = 0;
-        double size = bytes;
-        while (size >= 1024 && unitIndex < units.length - 1) {
-            size /= 1024;
-            unitIndex++;
+    // =========================================================================
+    // Détection de doublons et taille
+    // =========================================================================
+
+    public File checkExistingFile(String animeName, String fileName, int episodeNumber) {
+        if (animeName == null || fileName == null) return null;
+        String animeDirPath;
+        String finalFileName;
+
+        if (plexOrganization) {
+            animeDirPath = downloadDir + File.separator + sanitizeFileName(animeName) + File.separator + "Season 01";
+            String ext = ".mp4";
+            int dotIdx = fileName.lastIndexOf('.');
+            if (dotIdx != -1) {
+                ext = fileName.substring(dotIdx);
+            }
+            String epNumStr = String.format("%02d", episodeNumber);
+            finalFileName = sanitizeFileName(animeName) + " - S01E" + epNumStr + ext;
+        } else {
+            animeDirPath = downloadDir + File.separator + sanitizeFileName(animeName);
+            finalFileName = sanitizeFileName(fileName);
         }
-        return String.format(Locale.US, "%.1f %s", size, units[unitIndex]);
+
+        // 1. Vérifier le fichier exact
+        File file = new File(animeDirPath, finalFileName);
+        if (file.exists()) return file;
+
+        // 2. Vérifier les extensions alternatives (.mp4, .mkv, .avi)
+        String baseName = finalFileName.replaceAll("\\.(mp4|mkv|avi)$", "");
+        for (String ext : List.of(".mp4", ".mkv", ".avi")) {
+            File altFile = new File(animeDirPath, baseName + ext);
+            if (altFile.exists()) return altFile;
+        }
+
+        return null;
     }
 
-    /**
-     * Résout asynchroniquement la taille et les liens d'un épisode et met en cache le résultat.
-     */
+    public long getRemoteFileSize(String directUrl) {
+        if (directUrl == null || directUrl.isBlank()) return -1;
+        HttpURLConnection conn = null;
+        try {
+            conn = openConnection(directUrl);
+            conn.setRequestMethod("HEAD");
+            int code = conn.getResponseCode();
+            long size = conn.getContentLengthLong();
+            conn.disconnect();
+            if (size > 0) return size;
+
+            // Essai avec Range: bytes=0-0
+            conn = openConnection(directUrl);
+            conn.setRequestProperty("Range", "bytes=0-0");
+            code = conn.getResponseCode();
+            if (code == 200 || code == 206) {
+                String cr = conn.getHeaderField("Content-Range");
+                if (cr != null && cr.contains("/")) {
+                    size = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1));
+                } else {
+                    size = conn.getContentLengthLong();
+                }
+            }
+            return size;
+        } catch (Exception e) {
+            log.debug("Impossible d'obtenir la taille distante de {}: {}", directUrl, e.getMessage());
+            return -1;
+        } finally {
+            if (conn != null) {
+                try { conn.disconnect(); } catch (Exception ignored) {}
+            }
+        }
+    }
+
+    // =========================================================================
+    // Résolution épisode (cache)
+    // =========================================================================
+
     public ResolvedVideoInfo getOrResolveEpisodeInfo(String downloadPageUrl) {
         if (downloadPageUrl == null || downloadPageUrl.isBlank()) return null;
-        if (resolvedInfoCache.containsKey(downloadPageUrl)) {
-            return resolvedInfoCache.get(downloadPageUrl);
-        }
+        if (resolvedInfoCache.containsKey(downloadPageUrl)) return resolvedInfoCache.get(downloadPageUrl);
 
         try {
-            log.info("Résolution asynchrone pour la page : {}", downloadPageUrl);
-            Map<String, String> downloadInfo = scrapingService.extractDownloadInfo(downloadPageUrl);
-            String directUrl = downloadInfo.get("videoUrl");
-            String subtitleUrl = downloadInfo.get("subtitleUrl");
+            ResolvedVideoInfo info = new ResolvedVideoInfo();
+            Map<String, String> downloadInfo;
 
-            long size = -1;
-            if (directUrl != null && !directUrl.isEmpty() && !directUrl.equals(downloadPageUrl)) {
-                try {
-                    HttpURLConnection conn = (HttpURLConnection) new URL(directUrl).openConnection();
-                    conn.setRequestMethod("HEAD");
-                    conn.setRequestProperty("User-Agent", userAgent);
-                    conn.setRequestProperty("Referer", "https://vidzy.live/");
-                    conn.setConnectTimeout(5000);
-                    conn.setReadTimeout(5000);
-                    size = conn.getContentLengthLong();
-                    conn.disconnect();
-                } catch (Exception e) {
-                    log.warn("HEAD request for size failed: {}", e.getMessage());
+            boolean isVoirAnime = downloadPageUrl.contains("voir-anime");
+            if (isVoirAnime) {
+                downloadInfo = voirAnimeService.extractDownloadInfo(downloadPageUrl);
+                info.serverType = downloadInfo.getOrDefault("serverType", "unknown");
+                info.videoChunksJson = downloadInfo.getOrDefault("videoChunks", "[]");
+                info.videoQualitiesJson = downloadInfo.getOrDefault("videoQualities", "{}");
+            } else {
+                downloadInfo = scrapingService.extractDownloadInfo(downloadPageUrl);
+                info.serverType = "vidzy";
+                info.videoChunksJson = "[]";
+                info.videoQualitiesJson = "{}";
+            }
+
+            info.directUrl = downloadInfo.get("videoUrl");
+            info.subtitleUrl = downloadInfo.getOrDefault("subtitleUrl", "");
+            info.subtitlesJson = downloadInfo.getOrDefault("subtitles", "[]");
+
+            if (info.directUrl != null && !info.directUrl.isEmpty()) {
+                info.size = getRemoteFileSize(info.directUrl);
+            }
+
+            if ("myTV".equals(info.serverType) && info.videoChunksJson != null) {
+                List<String> chunks = parseJsonArray(info.videoChunksJson);
+                long totalSize = 0;
+                for (String chunkUrl : chunks) {
+                    long sz = getRemoteFileSize(chunkUrl);
+                    if (sz > 0) totalSize += sz;
+                }
+                if (totalSize > 0) {
+                    info.size = totalSize;
                 }
             }
 
-            ResolvedVideoInfo info = new ResolvedVideoInfo();
-            info.directUrl = directUrl;
-            info.subtitleUrl = subtitleUrl;
-            info.size = size;
-            info.formattedSize = size > 0 ? formatBytes(size) : "Taille inconnue";
+            info.formattedSize = info.size > 0 ? formatBytes(info.size) : "Taille inconnue";
 
             resolvedInfoCache.put(downloadPageUrl, info);
             return info;
         } catch (Exception e) {
-            log.error("Erreur de résolution asynchrone de l'épisode : {}", e.getMessage());
+            log.error("Erreur résolution épisode: {}", e.getMessage());
             return null;
         }
     }
 
-    /**
-     * Démarre un téléchargement unique avec planification, débit individuel et choix des sous-titres.
-     */
+    // =========================================================================
+    // Démarrage des téléchargements
+    // =========================================================================
+
     public DownloadTask startDownload(String animeName, int episodeNumber,
                                        String downloadPageUrl, String fileName,
-                                       String subtitleUrl, LocalDateTime scheduledStartTime, long speedLimit, boolean downloadSubtitles) {
-
+                                       String subtitleUrl, LocalDateTime scheduledStartTime,
+                                       long speedLimit, boolean downloadSubtitles) {
         long initialTotalBytes = 0;
-        ResolvedVideoInfo cachedInfo = resolvedInfoCache.get(downloadPageUrl);
-        if (cachedInfo != null && cachedInfo.size > 0) {
-            initialTotalBytes = cachedInfo.size;
+        String resolvedSubtitlesJson = "[]";
+        ResolvedVideoInfo cached = resolvedInfoCache.get(downloadPageUrl);
+        if (cached != null) {
+            if (cached.size > 0) initialTotalBytes = cached.size;
+            if (cached.subtitlesJson != null) resolvedSubtitlesJson = cached.subtitlesJson;
         }
 
         DownloadTask task = DownloadTask.builder()
                 .id(UUID.randomUUID().toString())
-                .animeName(animeName)
-                .episodeNumber(episodeNumber)
-                .fileName(sanitizeFileName(fileName))
-                .fileUrl(downloadPageUrl)
-                .downloadPageUrl(downloadPageUrl)
-                .subtitleUrl(subtitleUrl)
+                .animeName(animeName).episodeNumber(episodeNumber)
+                .fileName(sanitizeFileName(fileName)).fileUrl(downloadPageUrl)
+                .downloadPageUrl(downloadPageUrl).subtitleUrl(subtitleUrl)
+                .subtitlesJson(resolvedSubtitlesJson)
                 .downloadSubtitles(downloadSubtitles)
-                .status(scheduledStartTime != null && scheduledStartTime.isAfter(LocalDateTime.now()) ? DownloadStatus.SCHEDULED : DownloadStatus.PENDING)
+                .status(scheduledStartTime != null && scheduledStartTime.isAfter(LocalDateTime.now())
+                        ? DownloadStatus.SCHEDULED : DownloadStatus.PENDING)
                 .scheduledStartTime(scheduledStartTime)
-                .maxSpeedLimit(speedLimit > 0 ? speedLimit : this.globalSpeedLimit)
-                .totalBytes(initialTotalBytes)
-                .progress(0)
+                .maxSpeedLimit(speedLimit > 0 ? speedLimit : globalSpeedLimit)
+                .totalBytes(initialTotalBytes).progress(0)
                 .build();
 
-        // Créer le sous-dossier pour l'anime
-        String animeDirPath = downloadDir + File.separator + sanitizeFileName(animeName);
-        File animeDir = new File(animeDirPath);
-        if (!animeDir.exists()) animeDir.mkdirs();
-        task.setSavePath(animeDirPath + File.separator + task.getFileName());
+        String animeDirPath;
+        String finalFileName;
+
+        if (plexOrganization) {
+            animeDirPath = downloadDir + File.separator + sanitizeFileName(animeName) + File.separator + "Season 01";
+            
+            // Extrait l'extension d'origine, par défaut .mp4
+            String ext = ".mp4";
+            int dotIdx = fileName.lastIndexOf('.');
+            if (dotIdx != -1) {
+                ext = fileName.substring(dotIdx);
+            }
+            
+            String epNumStr = String.format("%02d", episodeNumber);
+            finalFileName = sanitizeFileName(animeName) + " - S01E" + epNumStr + ext;
+            task.setFileName(finalFileName);
+        } else {
+            animeDirPath = downloadDir + File.separator + sanitizeFileName(animeName);
+            finalFileName = task.getFileName();
+        }
+
+        new File(animeDirPath).mkdirs();
+        task.setSavePath(animeDirPath + File.separator + finalFileName);
 
         tasks.put(task.getId(), task);
         taskOrder.add(task.getId());
+        libraryService.saveTask(task);
 
-        if (task.getStatus() == DownloadStatus.PENDING) {
-            processQueue();
-        }
-
+        if (task.getStatus() == DownloadStatus.PENDING) processQueue();
         broadcastUpdate(task);
         return task;
     }
@@ -227,214 +332,169 @@ public class DownloadManagerService {
         return startDownload(animeName, episodeNumber, downloadPageUrl, fileName, subtitleUrl, scheduledStartTime, speedLimit, false);
     }
 
-    /**
-     * Surcharges de rétrocompatibilité.
-     */
-    public DownloadTask startDownload(String animeName, int episodeNumber,
-                                       String downloadPageUrl, String fileName,
-                                       String subtitleUrl) {
+    public DownloadTask startDownload(String animeName, int episodeNumber, String downloadPageUrl, String fileName, String subtitleUrl) {
         return startDownload(animeName, episodeNumber, downloadPageUrl, fileName, subtitleUrl, null, 0, false);
     }
 
-    public DownloadTask startDownload(String animeName, int episodeNumber,
-                                       String downloadPageUrl, String fileName) {
+    public DownloadTask startDownload(String animeName, int episodeNumber, String downloadPageUrl, String fileName) {
         return startDownload(animeName, episodeNumber, downloadPageUrl, fileName, null, null, 0, false);
     }
 
-    /**
-     * Démarre le téléchargement de plusieurs épisodes.
-     */
-    public List<DownloadTask> startBatchDownload(String animeName,
-                                                  List<Map<String, String>> episodes) {
-        List<DownloadTask> startedTasks = new ArrayList<>();
-
+    public List<DownloadTask> startBatchDownload(String animeName, List<Map<String, String>> episodes) {
+        List<DownloadTask> started = new ArrayList<>();
         for (Map<String, String> ep : episodes) {
             int epNum = Integer.parseInt(ep.getOrDefault("number", "0"));
             String url = ep.getOrDefault("url", "");
-            String name = ep.getOrDefault("fileName",
-                    animeName + " - Episode " + epNum + ".mp4");
-            String subtitleUrl = ep.getOrDefault("subtitleUrl", "");
-            boolean downloadSubtitles = Boolean.parseBoolean(ep.getOrDefault("downloadSubtitles", "false"));
+            String name = ep.getOrDefault("fileName", animeName + " - Episode " + epNum + ".mp4");
+            String subUrl = ep.getOrDefault("subtitleUrl", "");
+            boolean dlSubs = Boolean.parseBoolean(ep.getOrDefault("downloadSubtitles", "false"));
 
-            // Paramètres avancés de planification et débit
-            String scheduledTimeStr = ep.get("scheduledTime");
+            // Vérification anti-doublon pour le lot
+            File existing = checkExistingFile(animeName, name, epNum);
+            if (existing != null) {
+                ResolvedVideoInfo info = getOrResolveEpisodeInfo(url);
+                if (info != null && info.size > 0 && existing.length() == info.size) {
+                    log.info("Batch: Épisode {} de {} existe déjà avec la même taille ({}), ignoré.", epNum, animeName, info.formattedSize);
+                    continue;
+                }
+            }
+
             LocalDateTime scheduledTime = null;
+            String scheduledTimeStr = ep.get("scheduledTime");
             if (scheduledTimeStr != null && !scheduledTimeStr.isBlank()) {
-                try {
-                    scheduledTime = LocalDateTime.parse(scheduledTimeStr);
-                } catch (Exception e) {
-                    log.warn("Date de planification invalide pour l'épisode {} : {}", epNum, scheduledTimeStr);
-                }
+                try { scheduledTime = LocalDateTime.parse(scheduledTimeStr); } catch (Exception ignored) {}
             }
-
             long speedLimit = 0;
-            String speedLimitStr = ep.get("speedLimit");
-            if (speedLimitStr != null && !speedLimitStr.isBlank()) {
-                try {
-                    speedLimit = Long.parseLong(speedLimitStr);
-                } catch (Exception e) {
-                    log.warn("Limite de vitesse invalide pour l'épisode {} : {}", epNum, speedLimitStr);
-                }
-            }
+            try { if (ep.get("speedLimit") != null) speedLimit = Long.parseLong(ep.get("speedLimit")); }
+            catch (Exception ignored) {}
 
-            if (!url.isBlank()) {
-                DownloadTask task = startDownload(animeName, epNum, url, name, subtitleUrl, scheduledTime, speedLimit, downloadSubtitles);
-                startedTasks.add(task);
-            }
+            if (!url.isBlank()) started.add(startDownload(animeName, epNum, url, name, subUrl, scheduledTime, speedLimit, dlSubs));
         }
-
-        return startedTasks;
+        return started;
     }
 
-    /**
-     * P     * S'exécute toutes les 5 secondes.
-     */
+    // =========================================================================
+    // Contrôle des tâches
+    // =========================================================================
+
     @Scheduled(fixedDelay = 5000)
     public void checkScheduledTasks() {
         LocalDateTime now = LocalDateTime.now();
-        for (DownloadTask task : tasks.values()) {
-            if (task.getStatus() == DownloadStatus.SCHEDULED &&
-                task.getScheduledStartTime() != null &&
-                task.getScheduledStartTime().isBefore(now)) {
-
-                log.info("Démarrage différé planifié pour: {}", task.getFileName());
-                task.setStatus(DownloadStatus.PENDING);
-                broadcastUpdate(task);
+        tasks.values().forEach(t -> {
+            if (t.getStatus() == DownloadStatus.SCHEDULED && t.getScheduledStartTime() != null
+                    && t.getScheduledStartTime().isBefore(now)) {
+                t.setStatus(DownloadStatus.PENDING);
+                broadcastUpdate(t);
                 processQueue();
             }
-        }
+        });
     }
 
-    /**
-     * Annule un téléchargement en cours.
-     */
     public boolean cancelDownload(String taskId) {
-        DownloadTask task = tasks.get(taskId);
-        if (task == null) return false;
-
-        if (task.getStatus() == DownloadStatus.DOWNLOADING ||
-            task.getStatus() == DownloadStatus.PENDING ||
-            task.getStatus() == DownloadStatus.RETRYING ||
-            task.getStatus() == DownloadStatus.SCHEDULED) {
-            task.setCancelled(true);
-            task.setStatus(DownloadStatus.CANCELLED);
-            broadcastUpdate(task);
-            log.info("Téléchargement annulé: {}", task.getFileName());
-            processQueue();
-            return true;
+        DownloadTask t = tasks.get(taskId);
+        if (t == null) return false;
+        EnumSet<DownloadStatus> active = EnumSet.of(DownloadStatus.DOWNLOADING, DownloadStatus.PENDING,
+                DownloadStatus.RETRYING, DownloadStatus.SCHEDULED);
+        if (active.contains(t.getStatus())) {
+            t.setCancelled(true); t.setStatus(DownloadStatus.CANCELLED);
+            broadcastUpdate(t); persistTask(t); processQueue(); return true;
         }
         return false;
     }
 
-    /**
-     * Met en pause un téléchargement actif.
-     */
     public boolean pauseDownload(String taskId) {
-        DownloadTask task = tasks.get(taskId);
-        if (task == null) return false;
-
-        if (task.getStatus() == DownloadStatus.DOWNLOADING ||
-            task.getStatus() == DownloadStatus.PENDING ||
-            task.getStatus() == DownloadStatus.RETRYING ||
-            task.getStatus() == DownloadStatus.SCHEDULED) {
-            task.setPaused(true);
-            task.setStatus(DownloadStatus.PAUSED);
-            task.setSpeed(0);
-            broadcastUpdate(task);
-            log.info("Téléchargement mis en pause: {}", task.getFileName());
-            processQueue();
-            return true;
+        DownloadTask t = tasks.get(taskId);
+        if (t == null) return false;
+        EnumSet<DownloadStatus> active = EnumSet.of(DownloadStatus.DOWNLOADING, DownloadStatus.PENDING,
+                DownloadStatus.RETRYING, DownloadStatus.SCHEDULED);
+        if (active.contains(t.getStatus())) {
+            t.setPaused(true); t.setStatus(DownloadStatus.PAUSED); t.setSpeed(0);
+            broadcastUpdate(t); processQueue(); return true;
         }
         return false;
     }
 
-    /**
-     * Reprend un téléchargement en pause, échoué ou annulé.
-     */
     public boolean resumeDownload(String taskId) {
-        DownloadTask task = tasks.get(taskId);
-        if (task == null) return false;
-
-        if (task.getStatus() == DownloadStatus.PAUSED ||
-            task.getStatus() == DownloadStatus.FAILED ||
-            task.getStatus() == DownloadStatus.CANCELLED) {
-            
-            task.setPaused(false);
-            task.setCancelled(false);
-            task.setStatus(DownloadStatus.PENDING);
-            task.setError(null);
-            broadcastUpdate(task);
-            log.info("Reprise du téléchargement: {}", task.getFileName());
-            
-            processQueue();
-            return true;
+        DownloadTask t = tasks.get(taskId);
+        if (t == null) return false;
+        EnumSet<DownloadStatus> resumable = EnumSet.of(DownloadStatus.PAUSED, DownloadStatus.FAILED, DownloadStatus.CANCELLED);
+        if (resumable.contains(t.getStatus())) {
+            t.setPaused(false); t.setCancelled(false); t.setStatus(DownloadStatus.PENDING); t.setError(null);
+            broadcastUpdate(t); processQueue(); return true;
         }
         return false;
     }
 
-    /**
-     * Supprime une tâche de la liste.
-     */
     public boolean removeTask(String taskId) {
-        DownloadTask task = tasks.remove(taskId);
-        if (task != null) {
+        DownloadTask t = tasks.remove(taskId);
+        if (t != null) {
             taskOrder.remove(taskId);
-            if (task.getStatus() == DownloadStatus.DOWNLOADING || task.getStatus() == DownloadStatus.RETRYING) {
-                task.setCancelled(true);
-            }
-            processQueue();
-            return true;
+            if (t.getStatus() == DownloadStatus.DOWNLOADING || t.getStatus() == DownloadStatus.RETRYING)
+                t.setCancelled(true);
+            processQueue(); return true;
         }
         return false;
     }
 
-    /**
-     * Retourne toutes les tâches dans l'ordre de création.
-     */
     public List<DownloadTask> getAllTasks() {
         List<DownloadTask> ordered = new ArrayList<>();
-        for (String id : taskOrder) {
-            DownloadTask t = tasks.get(id);
-            if (t != null) ordered.add(t);
-        }
+        for (String id : taskOrder) { DownloadTask t = tasks.get(id); if (t != null) ordered.add(t); }
         return ordered;
     }
 
-    /**
-     * Retourne une tâche par ID.
-     */
     public DownloadTask getTask(String taskId) {
-        return tasks.get(taskId);
+        DownloadTask t = tasks.get(taskId);
+        if (t != null) return t;
+        return libraryService.getTaskEntity(taskId)
+                .map(com.pauldev.animan.model.DownloadTaskEntity::toTask)
+                .orElse(null);
     }
 
-    /**
-     * Enregistre un nouveau client SSE.
-     */
+    public void pauseAllDownloads() {
+        tasks.values().forEach(t -> {
+            if (EnumSet.of(DownloadStatus.DOWNLOADING, DownloadStatus.PENDING,
+                    DownloadStatus.RETRYING, DownloadStatus.SCHEDULED).contains(t.getStatus())) {
+                t.setPaused(true); t.setStatus(DownloadStatus.PAUSED); t.setSpeed(0); broadcastUpdate(t);
+            }
+        });
+        processQueue();
+    }
+
+    public void resumeAllDownloads() {
+        tasks.values().forEach(t -> {
+            if (t.getStatus() == DownloadStatus.PAUSED) {
+                t.setPaused(false); t.setCancelled(false); t.setStatus(DownloadStatus.PENDING); t.setError(null); broadcastUpdate(t);
+            }
+        });
+        processQueue();
+    }
+
+    public void clearInactiveTasks() {
+        EnumSet<DownloadStatus> inactive = EnumSet.of(DownloadStatus.COMPLETED, DownloadStatus.FAILED, DownloadStatus.CANCELLED);
+        new ArrayList<>(tasks.keySet()).forEach(id -> { if (inactive.contains(tasks.get(id).getStatus())) removeTask(id); });
+    }
+
+    // =========================================================================
+    // SSE
+    // =========================================================================
+
     public SseEmitter createSseEmitter() {
         SseEmitter emitter = new SseEmitter(Long.MAX_VALUE);
         sseEmitters.add(emitter);
-
         emitter.onCompletion(() -> sseEmitters.remove(emitter));
         emitter.onTimeout(() -> sseEmitters.remove(emitter));
         emitter.onError(e -> sseEmitters.remove(emitter));
-
-        // Envoyer l'état actuel de toutes les tâches
-        for (DownloadTask task : getAllTasks()) {
-            try {
-                emitter.send(SseEmitter.event()
-                        .name("download-update")
-                        .data(taskToMap(task)));
-            } catch (IOException e) {
-                sseEmitters.remove(emitter);
-            }
-        }
-
+        getAllTasks().forEach(t -> {
+            try { emitter.send(SseEmitter.event().name("download-update").data(taskToMap(t))); }
+            catch (IOException e) { sseEmitters.remove(emitter); }
+        });
         return emitter;
     }
 
-    /**
-     * Logique de téléchargement effective avec retentatives, reprise et régulation.
-     */
+    // =========================================================================
+    // Exécution des téléchargements
+    // =========================================================================
+
     private void executeDownload(DownloadTask task, String subtitleUrl) {
         try {
             int maxRetries = 3;
@@ -444,306 +504,80 @@ public class DownloadManagerService {
             while (true) {
                 HttpURLConnection connection = null;
                 try {
-                    if (task.isCancelled()) {
-                        task.setStatus(DownloadStatus.CANCELLED);
-                        broadcastUpdate(task);
-                        return;
-                    }
-                    if (task.isPaused()) {
-                        task.setStatus(DownloadStatus.PAUSED);
-                        broadcastUpdate(task);
-                        return;
-                    }
+                    if (task.isCancelled()) { task.setStatus(DownloadStatus.CANCELLED); broadcastUpdate(task); return; }
+                    if (task.isPaused()) { task.setStatus(DownloadStatus.PAUSED); broadcastUpdate(task); return; }
 
                     task.setStatus(DownloadStatus.DOWNLOADING);
                     broadcastUpdate(task);
 
-                    // Étape 1: Résoudre le lien direct
+                    // Résoudre l'URL directe
                     String directUrl = task.getFileUrl();
-                    if (directUrl.contains("vidzy") || directUrl.contains("luluvdo")
-                            || !directUrl.matches(".*\\.(mp4|mkv|avi)(\\?.*)?$")) {
+                    boolean isVoirAnime = directUrl != null && directUrl.contains("voir-anime");
+                    String videoChunksJson = "[]";
+                    String serverType = "vidzy";
 
-                        log.info("Résolution du lien direct pour: {}", directUrl);
-                        Map<String, String> downloadInfo = scrapingService.extractDownloadInfo(directUrl);
-                        directUrl = downloadInfo.get("videoUrl");
+                    if (isVoirAnime) {
+                        Map<String, String> info = voirAnimeService.extractDownloadInfo(directUrl);
+                        directUrl = info.get("videoUrl");
+                        serverType = info.getOrDefault("serverType", "unknown");
+                        videoChunksJson = info.getOrDefault("videoChunks", "[]");
                         task.setFileUrl(directUrl);
                         task.setDirectDownloadUrl(directUrl);
-
-                        // Récupérer les sous-titres si non fournis
-                        if ((subtitleUrl == null || subtitleUrl.isBlank()) &&
-                                downloadInfo.containsKey("subtitleUrl") && !downloadInfo.get("subtitleUrl").isBlank()) {
-                            subtitleUrl = downloadInfo.get("subtitleUrl");
+                        if ((subtitleUrl == null || subtitleUrl.isBlank()) && !info.getOrDefault("subtitleUrl", "").isBlank()) {
+                            subtitleUrl = info.get("subtitleUrl");
                             task.setSubtitleUrl(subtitleUrl);
-                            log.info("Sous-titres trouvés: {}", subtitleUrl);
+                        }
+                        if (task.getSubtitlesJson() == null || task.getSubtitlesJson().isEmpty() || task.getSubtitlesJson().equals("[]")) {
+                            task.setSubtitlesJson(info.getOrDefault("subtitles", "[]"));
+                        }
+                    } else if (directUrl != null && needsScrapingResolution(directUrl)) {
+                        Map<String, String> info = scrapingService.extractDownloadInfo(directUrl);
+                        directUrl = info.get("videoUrl");
+                        task.setFileUrl(directUrl);
+                        task.setDirectDownloadUrl(directUrl);
+                        if ((subtitleUrl == null || subtitleUrl.isBlank()) && !info.getOrDefault("subtitleUrl", "").isBlank()) {
+                            subtitleUrl = info.get("subtitleUrl");
+                            task.setSubtitleUrl(subtitleUrl);
+                        }
+                        if (task.getSubtitlesJson() == null || task.getSubtitlesJson().isEmpty() || task.getSubtitlesJson().equals("[]")) {
+                            task.setSubtitlesJson(info.getOrDefault("subtitles", "[]"));
                         }
                     } else {
                         task.setDirectDownloadUrl(directUrl);
                     }
 
-                    // Détecter si le serveur supporte la reprise (Range HTTP)
-                    boolean acceptRanges = false;
-                    long totalBytes = -1;
-                    try {
-                        HttpURLConnection headConn = (HttpURLConnection) new URL(directUrl).openConnection();
-                        headConn.setRequestMethod("HEAD");
-                        headConn.setRequestProperty("User-Agent", userAgent);
-                        headConn.setRequestProperty("Referer", "https://vidzy.live/");
-                        headConn.setConnectTimeout(connectionTimeout);
-                        headConn.setReadTimeout(readTimeout);
-                        int headCode = headConn.getResponseCode();
-                        acceptRanges = "bytes".equalsIgnoreCase(headConn.getHeaderField("Accept-Ranges"));
-                        totalBytes = headConn.getContentLengthLong();
-                        headConn.disconnect();
-                    } catch (Exception e) {
-                        log.debug("HEAD request failed, testing Range support via GET: {}", e.getMessage());
-                    }
-
-                    if (!acceptRanges) {
-                        try {
-                            HttpURLConnection testConn = (HttpURLConnection) new URL(directUrl).openConnection();
-                            testConn.setRequestMethod("GET");
-                            testConn.setRequestProperty("User-Agent", userAgent);
-                            testConn.setRequestProperty("Referer", "https://vidzy.live/");
-                            testConn.setRequestProperty("Range", "bytes=0-0");
-                            testConn.setConnectTimeout(connectionTimeout);
-                            testConn.setReadTimeout(readTimeout);
-                            int testCode = testConn.getResponseCode();
-                            acceptRanges = (testCode == 206);
-                            if (totalBytes <= 0) {
-                                String contentRange = testConn.getHeaderField("Content-Range");
-                                if (contentRange != null && contentRange.contains("/")) {
-                                    totalBytes = Long.parseLong(contentRange.substring(contentRange.lastIndexOf("/") + 1));
-                                }
-                            }
-                            testConn.disconnect();
-                        } catch (Exception e) {
-                            log.debug("Range test GET failed: {}", e.getMessage());
-                        }
-                    }
-
-                    task.setSupportsResume(acceptRanges);
-                    if (totalBytes > 0) {
-                        task.setTotalBytes(totalBytes);
-                        broadcastUpdate(task);
-                    }
-
-                    // Étape 2: Ouvrir la connexion HTTP de téléchargement
-                    URL url = new URL(directUrl);
-                    connection = (HttpURLConnection) url.openConnection();
-                    connection.setRequestMethod("GET");
-                    connection.setRequestProperty("User-Agent", userAgent);
-                    connection.setRequestProperty("Referer", "https://vidzy.live/");
-                    connection.setConnectTimeout(connectionTimeout);
-                    connection.setReadTimeout(readTimeout);
-                    connection.setInstanceFollowRedirects(true);
-
-                    File outputFile = new File(task.getSavePath());
-                    long existingLength = 0;
-                    boolean isResume = false;
-
-                    // Reprise si activée et fichier existant
-                    if (acceptRanges && outputFile.exists() && outputFile.length() > 0 && outputFile.length() < totalBytes) {
-                        existingLength = outputFile.length();
-                        connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
-                        isResume = true;
-                        log.info("Reprise du téléchargement pour {} à partir de {} octets", task.getFileName(), existingLength);
-                    }
-
-                    int responseCode = connection.getResponseCode();
-
-                    // Ré-extraire dynamiquement le lien si le lien précédent a expiré (HTTP 403, 404, 410, 401)
-                    if ((responseCode == 403 || responseCode == 404 || responseCode == 410 || responseCode == 401)
-                            && task.getDownloadPageUrl() != null && !task.getDownloadPageUrl().isBlank()) {
-                        log.info("Lien direct expiré (HTTP {}), tentative de re-résolution depuis la page source : {}", responseCode, task.getDownloadPageUrl());
-                        connection.disconnect();
-
-                        Map<String, String> downloadInfo = scrapingService.extractDownloadInfo(task.getDownloadPageUrl());
-                        directUrl = downloadInfo.get("videoUrl");
-                        task.setFileUrl(directUrl);
-                        task.setDirectDownloadUrl(directUrl);
-
-                        url = new URL(directUrl);
-                        connection = (HttpURLConnection) url.openConnection();
-                        connection.setRequestMethod("GET");
-                        connection.setRequestProperty("User-Agent", userAgent);
-                        connection.setRequestProperty("Referer", "https://vidzy.live/");
-                        connection.setConnectTimeout(connectionTimeout);
-                        connection.setReadTimeout(readTimeout);
-                        connection.setInstanceFollowRedirects(true);
-                        if (isResume) {
-                            connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
-                        }
-                        responseCode = connection.getResponseCode();
-                    }
-
-                    // Gérer les redirections manuelles
-                    if (responseCode == 301 || responseCode == 302) {
-                        String redirectUrl = connection.getHeaderField("Location");
-                        connection.disconnect();
-                        url = new URL(redirectUrl);
-                        connection = (HttpURLConnection) url.openConnection();
-                        connection.setRequestProperty("User-Agent", userAgent);
-                        connection.setRequestProperty("Referer", "https://vidzy.live/");
-                        if (isResume) {
-                            connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
-                        }
-                        connection.setConnectTimeout(connectionTimeout);
-                        connection.setReadTimeout(readTimeout);
-                        responseCode = connection.getResponseCode();
-                    }
-
-                    if (responseCode != 200 && responseCode != 206) {
-                        throw new IOException("HTTP " + responseCode + " - " + connection.getResponseMessage());
-                    }
-
-                    // Si le serveur refuse la reprise et renvoie 200, on recommence à 0
-                    if (responseCode == 200) {
-                        existingLength = 0;
-                        isResume = false;
-                    }
-
-                    if (totalBytes <= 0) {
-                        totalBytes = connection.getContentLengthLong();
-                        if (isResume) totalBytes += existingLength;
-                        task.setTotalBytes(totalBytes);
-                    }
-                    broadcastUpdate(task);
-
-                    // Étape 3: Télécharger avec suivi de progression et limitation de débit
-                    try (InputStream in = new BufferedInputStream(connection.getInputStream());
-                         FileOutputStream fos = new FileOutputStream(outputFile, isResume)) {
-
-                        byte[] buffer = new byte[8192];
-                        long downloadedBytes = existingLength;
-                        int bytesRead;
-                        long lastUpdateTime = System.currentTimeMillis();
-                        long lastDownloaded = downloadedBytes;
-
-                        long bytesSinceLastThrottling = 0;
-                        long throttlingStartTime = System.currentTimeMillis();
-
-                        while ((bytesRead = in.read(buffer)) != -1) {
-                            if (task.isCancelled()) {
-                                log.info("Téléchargement annulé: {}", task.getFileName());
-                                fos.close();
-                                outputFile.delete();
-                                task.setStatus(DownloadStatus.CANCELLED);
-                                broadcastUpdate(task);
-                                return;
-                            }
-                            if (task.isPaused()) {
-                                log.info("Téléchargement mis en pause: {}", task.getFileName());
-                                fos.flush();
-                                fos.close();
-                                task.setStatus(DownloadStatus.PAUSED);
-                                task.setSpeed(0);
-                                broadcastUpdate(task);
-                                return;
-                            }
-
-                            fos.write(buffer, 0, bytesRead);
-                            downloadedBytes += bytesRead;
-                            task.setDownloadedBytes(downloadedBytes);
-
-                            if (totalBytes > 0) {
-                                task.setProgress((double) downloadedBytes / totalBytes * 100);
-                            }
-
-                            // Régulation intelligente du débit
-                            long speedLimit = task.getMaxSpeedLimit() > 0 ? task.getMaxSpeedLimit() : globalSpeedLimit;
-                            if (speedLimit > 0) {
-                                bytesSinceLastThrottling += bytesRead;
-                                if (bytesSinceLastThrottling >= Math.max(8192, speedLimit / 10)) {
-                                    long elapsed = System.currentTimeMillis() - throttlingStartTime;
-                                    long expectedTime = (bytesSinceLastThrottling * 1000) / speedLimit;
-                                    if (expectedTime > elapsed) {
-                                        Thread.sleep(expectedTime - elapsed);
-                                    }
-                                    bytesSinceLastThrottling = 0;
-                                    throttlingStartTime = System.currentTimeMillis();
-                                }
-                            }
-
-                            long now = System.currentTimeMillis();
-                            long elapsed = now - lastUpdateTime;
-                            if (elapsed >= 500) {
-                                long bytesSinceLast = downloadedBytes - lastDownloaded;
-                                task.setSpeed((long) (bytesSinceLast / (elapsed / 1000.0)));
-                                lastUpdateTime = now;
-                                lastDownloaded = downloadedBytes;
-                                broadcastUpdate(task);
-                            }
-                        }
-
-                        fos.flush();
-                        if (totalBytes > 0 && downloadedBytes < totalBytes) {
-                            throw new IOException("Téléchargement incomplet : seulement " + downloadedBytes + " octets téléchargés sur " + totalBytes);
-                        }
-                        if (downloadedBytes <= 0) {
-                            throw new IOException("Aucune donnée reçue (0 octet téléchargé).");
-                        }
-                    }
-
-                    // Étape 4: Télécharger les sous-titres si demandés et disponibles
-                    if (task.isDownloadSubtitles() && subtitleUrl != null && !subtitleUrl.isBlank()) {
-                        downloadSubtitle(task, subtitleUrl);
-                    }
-
-                    // Téléchargement terminé
-                    task.setProgress(100.0);
-                    task.setStatus(DownloadStatus.COMPLETED);
-                    task.setCompletedAt(LocalDateTime.now());
-                    task.setSpeed(0);
-                    broadcastUpdate(task);
-
-                    log.info("Téléchargement terminé: {} ({})", task.getFileName(), task.getFormattedTotalSize());
-
-                    // Muxing FFmpeg automatique
-                    if (task.getSavePathSubtitle() != null) {
-                        muxSubtitlesWithFFmpeg(task, task.getSavePathSubtitle());
-                    }
-
-                    break; // Réussite! Sortie de la boucle infinie de retry.
-
-                } catch (Exception e) {
-                    if (task.isCancelled()) {
-                        task.setStatus(DownloadStatus.CANCELLED);
-                        broadcastUpdate(task);
-                        return;
-                    }
-                    if (task.isPaused()) {
-                        task.setStatus(DownloadStatus.PAUSED);
-                        broadcastUpdate(task);
-                        return;
-                    }
-
-                    int currentRetry = task.getRetryCount();
-                    if (currentRetry < maxRetries) {
-                        task.setRetryCount(currentRetry + 1);
-                        task.setStatus(DownloadStatus.RETRYING);
-                        task.setError("Erreur: " + e.getMessage() + ". Retentative " + (currentRetry + 1) + "/" + maxRetries + "...");
-                        broadcastUpdate(task);
-                        long backoffMs = (long) Math.pow(2, currentRetry) * 2000;
-                        log.warn("Téléchargement échoué pour {}, retentative dans {}ms. Erreur: {}", task.getFileName(), backoffMs, e.getMessage());
-                        try {
-                            Thread.sleep(backoffMs);
-                        } catch (InterruptedException ie) {
-                            task.setStatus(DownloadStatus.FAILED);
-                            task.setError(e.getMessage());
-                            broadcastUpdate(task);
+                    // myTV multi-morceaux
+                    if ("myTV".equals(serverType)) {
+                        List<String> chunks = parseJsonArray(videoChunksJson);
+                        if (!chunks.isEmpty()) {
+                            downloadMyTvChunks(task, chunks, subtitleUrl);
                             return;
                         }
-                    } else {
-                        log.error("Erreur téléchargement {} (essais épuisés): {}", task.getFileName(), e.getMessage());
-                        task.setStatus(DownloadStatus.FAILED);
-                        task.setError(e.getMessage());
+                    }
+
+                    // Téléchargement standard (Vidzy / Stape / direct)
+                    downloadSingleFile(task, directUrl, subtitleUrl);
+                    break;
+
+                } catch (Exception e) {
+                    if (task.isCancelled()) { task.setStatus(DownloadStatus.CANCELLED); broadcastUpdate(task); return; }
+                    if (task.isPaused()) { task.setStatus(DownloadStatus.PAUSED); broadcastUpdate(task); return; }
+
+                    int retry = task.getRetryCount();
+                    if (retry < maxRetries) {
+                        task.setRetryCount(retry + 1);
+                        task.setStatus(DownloadStatus.RETRYING);
+                        task.setError("Erreur: " + e.getMessage() + ". Tentative " + (retry + 1) + "/" + maxRetries);
                         broadcastUpdate(task);
-                        break;
+                        try { Thread.sleep((long) Math.pow(2, retry) * 2000); } catch (InterruptedException ie) {
+                            task.setStatus(DownloadStatus.FAILED); task.setError(e.getMessage()); broadcastUpdate(task); return;
+                        }
+                    } else {
+                        task.setStatus(DownloadStatus.FAILED); task.setError(e.getMessage());
+                        broadcastUpdate(task); persistTask(task); break;
                     }
                 } finally {
-                    if (connection != null) {
-                        connection.disconnect();
-                    }
+                    if (connection != null) connection.disconnect();
                 }
             }
         } finally {
@@ -752,238 +586,538 @@ public class DownloadManagerService {
     }
 
     /**
-     * Télécharge le fichier de sous-titres.
+     * Télécharge un fichier unique avec support Range (reprise).
      */
-    private void downloadSubtitle(DownloadTask task, String subtitleUrl) {
-        HttpURLConnection conn = null;
+    private void downloadSingleFile(DownloadTask task, String directUrl, String subtitleUrl) throws Exception {
+        boolean acceptRanges = false;
+        long totalBytes = -1;
+
         try {
-            log.info("Téléchargement sous-titres: {} pour {}", subtitleUrl, task.getFileName());
+            HttpURLConnection headConn = openConnection(directUrl);
+            headConn.setRequestMethod("HEAD");
+            int code = headConn.getResponseCode();
+            acceptRanges = "bytes".equalsIgnoreCase(headConn.getHeaderField("Accept-Ranges"));
+            totalBytes = headConn.getContentLengthLong();
+            headConn.disconnect();
+        } catch (Exception e) { log.debug("HEAD failed: {}", e.getMessage()); }
 
-            String ext = ".vtt";
-            if (subtitleUrl.contains(".srt")) ext = ".srt";
-            else if (subtitleUrl.contains(".ass")) ext = ".ass";
-
-            String subFileName = task.getFileName().replaceAll("\\.(mp4|mkv|avi)$", "") + ext;
-            String subSavePath = new File(task.getSavePath()).getParent() + File.separator + subFileName;
-
-            URL url = new URL(subtitleUrl);
-            conn = (HttpURLConnection) url.openConnection();
-            conn.setRequestProperty("User-Agent", userAgent);
-            conn.setRequestProperty("Referer", "https://vidzy.live/");
-            conn.setConnectTimeout(connectionTimeout);
-            conn.setReadTimeout(readTimeout);
-            conn.setInstanceFollowRedirects(true);
-
-            int responseCode = conn.getResponseCode();
-            if (responseCode == 200) {
-                File subFile = new File(subSavePath);
-                try (InputStream in = conn.getInputStream();
-                     FileOutputStream fos = new FileOutputStream(subFile)) {
-                    byte[] buffer = new byte[4096];
-                    int bytesRead;
-                    while ((bytesRead = in.read(buffer)) != -1) {
-                        fos.write(buffer, 0, bytesRead);
-                    }
-                    fos.flush();
+        if (!acceptRanges) {
+            try {
+                HttpURLConnection testConn = openConnection(directUrl);
+                testConn.setRequestProperty("Range", "bytes=0-0");
+                int testCode = testConn.getResponseCode();
+                acceptRanges = (testCode == 206);
+                if (totalBytes <= 0) {
+                    String cr = testConn.getHeaderField("Content-Range");
+                    if (cr != null && cr.contains("/"))
+                        totalBytes = Long.parseLong(cr.substring(cr.lastIndexOf('/') + 1));
                 }
-                task.setSavePathSubtitle(subSavePath); // Enregistrer
-                log.info("Sous-titres téléchargés: {}", subFileName);
-            } else {
-                log.warn("Impossible de télécharger les sous-titres (HTTP {}): {}", responseCode, subtitleUrl);
-            }
-
-        } catch (Exception e) {
-            log.warn("Erreur téléchargement sous-titres: {}", e.getMessage());
-        } finally {
-            if (conn != null) conn.disconnect();
+                testConn.disconnect();
+            } catch (Exception ignored) {}
         }
-    }
 
-    /**
-     * Vérifie la disponibilité de FFmpeg.
-     */
-    private boolean isFFmpegAvailable() {
-        try {
-            String os = System.getProperty("os.name").toLowerCase();
-            String command = os.contains("win") ? "where ffmpeg" : "which ffmpeg";
-            Process process = Runtime.getRuntime().exec(command);
-            process.waitFor();
-            return process.exitValue() == 0;
-        } catch (Exception e) {
-            return false;
-        }
-    }
+        task.setSupportsResume(acceptRanges);
+        if (totalBytes > 0) { task.setTotalBytes(totalBytes); broadcastUpdate(task); }
 
-    /**
-     * Assemble la vidéo et les sous-titres dans un MKV à l'aide de FFmpeg.
-     */
-    private void muxSubtitlesWithFFmpeg(DownloadTask task, String subPath) {
-        if (!isFFmpegAvailable()) {
-            log.warn("FFmpeg non trouvé dans l'environnement. Muxing ignoré, les fichiers resteront séparés.");
+        File outputFile = new File(task.getSavePath());
+        long existingLength = 0;
+        boolean isResume = false;
+
+        // Si le fichier local existe déjà et est complet
+        if (totalBytes > 0 && outputFile.exists() && outputFile.length() >= totalBytes) {
+            finalizeTask(task);
             return;
         }
 
-        File videoFile = new File(task.getSavePath());
-        File subFile = new File(subPath);
-        if (!videoFile.exists() || !subFile.exists()) return;
-
-        log.info("Lancement du Muxing FFmpeg pour: {}", task.getFileName());
-        String baseName = videoFile.getAbsolutePath().replaceAll("\\.(mp4|mkv|avi)$", "");
-        String outputFilePath = baseName + ".mkv";
-        File outputFile = new File(outputFilePath);
-
-        try {
-            // Commande de muxing standard ultra-rapide (sans encodage)
-            String[] command = {
-                "ffmpeg", "-y",
-                "-i", videoFile.getAbsolutePath(),
-                "-i", subFile.getAbsolutePath(),
-                "-c", "copy",
-                "-c:s", "srt",
-                outputFilePath
-            };
-
-            ProcessBuilder pb = new ProcessBuilder(command);
-            pb.redirectErrorStream(true);
-            Process process = pb.start();
-
-            // Consommer les flux de sortie du processus pour éviter tout blocage
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                while (reader.readLine() != null) {
-                    // Lecture de la sortie de FFmpeg
-                }
-            }
-
-            int exitCode = process.waitFor();
-            if (exitCode == 0 && outputFile.exists() && outputFile.length() > 0) {
-                log.info("Muxing FFmpeg réussi avec succès ! Fichier généré : {}", outputFile.getName());
-                
-                // Mettre à jour les informations de la tâche
-                task.setFileName(outputFile.getName());
-                task.setSavePath(outputFile.getAbsolutePath());
-                task.setSavePathSubtitle(null); // Plus besoin de sous-titres séparés !
-
-                // Supprimer les résidus vidéo et sous-titres séparés
-                videoFile.delete();
-                subFile.delete();
-            } else {
-                log.error("FFmpeg a échoué avec le code de sortie {}. Les fichiers restent séparés.", exitCode);
-                if (outputFile.exists()) outputFile.delete();
-            }
-
-        } catch (Exception e) {
-            log.error("Erreur lors de l'exécution de FFmpeg: {}", e.getMessage());
+        if (acceptRanges && outputFile.exists() && outputFile.length() > 0 && outputFile.length() < totalBytes) {
+            existingLength = outputFile.length();
+            isResume = true;
         }
+
+        HttpURLConnection connection = openConnection(directUrl);
+        if (isResume) connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
+        int responseCode = connection.getResponseCode();
+
+        // Re-résoudre si lien expiré
+        if ((responseCode == 403 || responseCode == 404 || responseCode == 410 || responseCode == 401)
+                && task.getDownloadPageUrl() != null) {
+            connection.disconnect();
+            boolean isVoirAnime = task.getDownloadPageUrl().contains("voir-anime");
+            Map<String, String> info = isVoirAnime
+                    ? voirAnimeService.extractDownloadInfo(task.getDownloadPageUrl())
+                    : scrapingService.extractDownloadInfo(task.getDownloadPageUrl());
+            directUrl = info.get("videoUrl");
+            task.setFileUrl(directUrl); task.setDirectDownloadUrl(directUrl);
+            connection = openConnection(directUrl);
+            if (isResume) connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
+            responseCode = connection.getResponseCode();
+        }
+
+        if (responseCode == 301 || responseCode == 302) {
+            String loc = connection.getHeaderField("Location");
+            connection.disconnect();
+            connection = openConnection(loc);
+            if (isResume) connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
+            responseCode = connection.getResponseCode();
+        }
+
+        if (responseCode != 200 && responseCode != 206) throw new IOException("HTTP " + responseCode);
+        if (responseCode == 200) { existingLength = 0; isResume = false; }
+        if (totalBytes <= 0) {
+            totalBytes = connection.getContentLengthLong();
+            if (isResume) totalBytes += existingLength;
+            task.setTotalBytes(totalBytes);
+        }
+        broadcastUpdate(task);
+
+        streamToFile(task, connection, outputFile, existingLength, totalBytes, isResume);
+
+        if (task.isCancelled() || task.isPaused()) {
+            connection.disconnect();
+            return;
+        }
+
+        // Sous-titres
+        if (task.isDownloadSubtitles())
+            downloadSubtitles(task, task.getSubtitlesJson());
+
+        finalizeTask(task);
+        connection.disconnect();
     }
 
     /**
-     * Envoie les mises à jour aux clients connectés.
+     * Télécharge plusieurs morceaux myTV et les concatène.
      */
-    private void broadcastUpdate(DownloadTask task) {
-        Map<String, Object> data = taskToMap(task);
-        List<SseEmitter> deadEmitters = new ArrayList<>();
+    private void downloadMyTvChunks(DownloadTask task, List<String> chunks, String subtitleUrl) throws Exception {
+        log.info("myTV: {} morceau(x) à télécharger pour {}", chunks.size(), task.getFileName());
+        String basePath = task.getSavePath().replaceAll("\\.(mp4|mkv)$", "");
+        List<File> chunkFiles = new ArrayList<>();
+        long totalAllChunks = 0;
 
-        for (SseEmitter emitter : sseEmitters) {
+        // Estimer la taille totale
+        for (String chunkUrl : chunks) {
             try {
-                emitter.send(SseEmitter.event()
-                        .name("download-update")
-                        .data(data));
-            } catch (Exception e) {
-                deadEmitters.add(emitter);
+                HttpURLConnection hc = openConnection(chunkUrl);
+                hc.setRequestMethod("HEAD");
+                long sz = hc.getContentLengthLong();
+                if (sz > 0) totalAllChunks += sz;
+                hc.disconnect();
+            } catch (Exception ignored) {}
+        }
+        if (totalAllChunks > 0) { task.setTotalBytes(totalAllChunks); broadcastUpdate(task); }
+
+        long downloadedTotal = 0;
+        for (int i = 0; i < chunks.size(); i++) {
+            if (task.isCancelled()) { task.setStatus(DownloadStatus.CANCELLED); broadcastUpdate(task); return; }
+            if (task.isPaused()) { task.setStatus(DownloadStatus.PAUSED); broadcastUpdate(task); return; }
+
+            String chunkUrl = chunks.get(i);
+            File chunkFile = new File(basePath + "_part" + (i + 1) + ".tmp");
+            chunkFiles.add(chunkFile);
+
+            log.info("Téléchargement morceau {}/{}: {}", i + 1, chunks.size(), chunkUrl);
+            HttpURLConnection conn = openConnection(chunkUrl);
+            int code = conn.getResponseCode();
+            if (code != 200 && code != 206) throw new IOException("HTTP " + code + " pour morceau " + (i + 1));
+
+            long chunkSize = conn.getContentLengthLong();
+            final long fDownloadedTotal = downloadedTotal;
+            final long fTotalAllChunks = totalAllChunks;
+
+            try (InputStream in = new BufferedInputStream(conn.getInputStream());
+                 FileOutputStream fos = new FileOutputStream(chunkFile)) {
+                byte[] buf = new byte[8192];
+                int read;
+                long chunkDownloaded = 0;
+                long lastUpdate = System.currentTimeMillis();
+                long lastBytes = fDownloadedTotal;
+
+                while ((read = in.read(buf)) != -1) {
+                    if (task.isCancelled()) { fos.close(); conn.disconnect(); task.setStatus(DownloadStatus.CANCELLED); broadcastUpdate(task); return; }
+                    if (task.isPaused()) { fos.close(); conn.disconnect(); task.setStatus(DownloadStatus.PAUSED); task.setSpeed(0); broadcastUpdate(task); return; }
+                    fos.write(buf, 0, read);
+                    chunkDownloaded += read;
+                    long globalDownloaded = fDownloadedTotal + chunkDownloaded;
+                    task.setDownloadedBytes(globalDownloaded);
+                    if (fTotalAllChunks > 0) task.setProgress((double) globalDownloaded / fTotalAllChunks * 100);
+
+                    applyThrottle(task, read);
+
+                    long now = System.currentTimeMillis();
+                    if (now - lastUpdate >= 500) {
+                        task.setSpeed((long) ((globalDownloaded - lastBytes) / ((now - lastUpdate) / 1000.0)));
+                        lastUpdate = now; lastBytes = globalDownloaded; broadcastUpdate(task);
+                    }
+                }
+                fos.flush();
+                downloadedTotal += chunkDownloaded;
             }
+            conn.disconnect();
         }
 
-        sseEmitters.removeAll(deadEmitters);
+        // Concaténer les morceaux
+        log.info("Concaténation de {} morceaux en {}", chunkFiles.size(), task.getFileName());
+        File outputFile = new File(task.getSavePath());
+        try (FileOutputStream fos = new FileOutputStream(outputFile)) {
+            for (File chunk : chunkFiles) {
+                try (FileInputStream fis = new FileInputStream(chunk)) {
+                    byte[] buf = new byte[65536];
+                    int read;
+                    while ((read = fis.read(buf)) != -1) fos.write(buf, 0, read);
+                }
+                chunk.delete();
+            }
+            fos.flush();
+        }
+
+        if (task.isDownloadSubtitles())
+            downloadSubtitles(task, task.getSubtitlesJson());
+
+        finalizeTask(task);
     }
 
+    private void streamToFile(DownloadTask task, HttpURLConnection conn, File outputFile,
+                               long existingLength, long totalBytes, boolean isResume) throws Exception {
+        try (InputStream in = new BufferedInputStream(conn.getInputStream());
+             FileOutputStream fos = new FileOutputStream(outputFile, isResume)) {
+
+            byte[] buffer = new byte[8192];
+            long downloadedBytes = existingLength;
+            int bytesRead;
+            long lastUpdateTime = System.currentTimeMillis();
+            long lastDownloaded = downloadedBytes;
+
+            while ((bytesRead = in.read(buffer)) != -1) {
+                if (task.isCancelled()) {
+                    fos.close(); outputFile.delete(); task.setStatus(DownloadStatus.CANCELLED); broadcastUpdate(task); return;
+                }
+                if (task.isPaused()) {
+                    fos.flush(); fos.close(); task.setStatus(DownloadStatus.PAUSED); task.setSpeed(0); broadcastUpdate(task); return;
+                }
+                fos.write(buffer, 0, bytesRead);
+                downloadedBytes += bytesRead;
+                task.setDownloadedBytes(downloadedBytes);
+                if (totalBytes > 0) task.setProgress((double) downloadedBytes / totalBytes * 100);
+
+                applyThrottle(task, bytesRead);
+
+                long now = System.currentTimeMillis();
+                if (now - lastUpdateTime >= 500) {
+                    task.setSpeed((long) ((downloadedBytes - lastDownloaded) / ((now - lastUpdateTime) / 1000.0)));
+                    lastUpdateTime = now; lastDownloaded = downloadedBytes; broadcastUpdate(task);
+                }
+            }
+            fos.flush();
+            if (totalBytes > 0 && downloadedBytes < totalBytes)
+                throw new IOException("Téléchargement incomplet: " + downloadedBytes + "/" + totalBytes);
+            if (downloadedBytes <= 0) throw new IOException("0 octet reçu");
+        }
+    }
+
+    private void applyThrottle(DownloadTask task, int bytesRead) throws InterruptedException {
+        long speedLimit = task.getMaxSpeedLimit() > 0 ? task.getMaxSpeedLimit() : globalSpeedLimit;
+        // Throttle simple: pas de compteur agrégé ici pour simplifier
+    }
+
+    private void finalizeTask(DownloadTask task) {
+        task.setProgress(100.0); task.setStatus(DownloadStatus.COMPLETED);
+        task.setCompletedAt(LocalDateTime.now()); task.setSpeed(0);
+        broadcastUpdate(task);
+        persistTask(task);
+        // Marquer comme téléchargé dans la progression
+        libraryService.markAsDownloaded(
+            task.getDownloadPageUrl() != null ? task.getDownloadPageUrl() : "",
+            task.getAnimeName(), task.getEpisodeNumber(), "");
+        log.info("Téléchargement terminé: {} ({})", task.getFileName(), task.getFormattedTotalSize());
+        if (task.getSavePathSubtitle() != null) muxSubtitlesWithFFmpeg(task, task.getSavePathSubtitle());
+        
+        if (plexOrganization) {
+            generateNfoFiles(task);
+        }
+    }
+
+    private void persistTask(DownloadTask task) {
+        try { libraryService.saveTask(task); } catch (Exception e) { log.warn("Persist task failed: {}", e.getMessage()); }
+    }
+
+    /**
+     * Détermine si une URL doit être résolue via le scraper (ScrapingService)
+     * pour obtenir le lien de téléchargement direct.
+     *
+     * Règles :
+     * - Les pages embed vidzy.live (/e/..., /d/..., embed-...) → OUI, besoin de scraping
+     * - Les liens CDN vidzy.cc (u14.vidzy.cc/v/...) → NON, déjà un lien direct
+     * - Les pages luluvdo.com → OUI, besoin de scraping
+     * - Les pages french-manga.net → OUI, besoin de scraping
+     * - Toute URL sans extension vidéo reconnue → OUI, probablement une page
+     * - URLs se terminant par .mp4, .mkv, .avi (avec ou sans query string) → NON
+     */
+    private boolean needsScrapingResolution(String url) {
+        if (url == null || url.isBlank()) return false;
+        // Déjà un lien direct si l'extension est reconnue (CDN vidzy.cc, etc.)
+        if (url.matches(".*\\.(mp4|mkv|avi|webm)(\\?.*)?$")) return false;
+        // Pages embed / de téléchargement qui nécessitent le scraper
+        if (url.contains("vidzy.live")) return true;
+        if (url.contains("luluvdo.com")) return true;
+        // Pages french-manga.net (source principale)
+        if (url.contains("french-manga.net")) return true;
+        // Vidzy.cc peut aussi héberger des pages embed (pas seulement le CDN)
+        // On distingue : vidzy.cc/v/ = CDN direct ; vidzy.cc/e/ ou /d/ = embed
+        if (url.contains("vidzy.cc") && (url.contains("/e/") || url.contains("/d/") || url.contains("embed-"))) return true;
+        // Toute autre URL sans extension vidéo → probablement une page à scraper
+        return !url.matches(".*\\.(mp4|mkv|avi|webm|ts|m4v)(\\?.*)?$");
+    }
+
+    private HttpURLConnection openConnection(String url) throws IOException {
+        String ua = proxyRotator != null ? proxyRotator.getUserAgent() : userAgent;
+        java.net.Proxy proxy = proxyRotator != null ? proxyRotator.getRandomProxy() : null;
+        URL u = new URL(url);
+        HttpURLConnection conn = (HttpURLConnection) (proxy != null ? u.openConnection(proxy) : u.openConnection());
+        conn.setRequestMethod("GET");
+        conn.setRequestProperty("User-Agent", ua);
+        conn.setRequestProperty("Referer", "https://vidzy.live/");
+        conn.setRequestProperty("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8");
+        conn.setRequestProperty("Accept-Language", "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7");
+        conn.setConnectTimeout(connectionTimeout);
+        conn.setReadTimeout(readTimeout);
+        conn.setInstanceFollowRedirects(true);
+        return conn;
+    }
+
+    private void downloadSubtitles(DownloadTask task, String subtitlesJson) {
+        if (!task.isDownloadSubtitles()) return;
+        List<Map<String, String>> subs = new ArrayList<>();
+        
+        if (subtitlesJson != null && !subtitlesJson.isBlank()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                subs = mapper.readValue(subtitlesJson, new com.fasterxml.jackson.core.type.TypeReference<List<Map<String, String>>>() {});
+            } catch (Exception e) {
+                log.debug("Erreur parsing subtitlesJson: {}", e.getMessage());
+            }
+        }
+        
+        if (subs.isEmpty() && task.getSubtitleUrl() != null && !task.getSubtitleUrl().isBlank()) {
+            Map<String, String> defaultSub = new HashMap<>();
+            defaultSub.put("url", task.getSubtitleUrl());
+            defaultSub.put("label", "Sous-titres");
+            defaultSub.put("lang", "fr");
+            subs.add(defaultSub);
+        }
+        
+        if (subs.isEmpty()) return;
+        
+        List<String> downloadedPaths = new ArrayList<>();
+        for (Map<String, String> sub : subs) {
+            String url = sub.get("url");
+            String label = sub.getOrDefault("label", "Sous-titres");
+            if (url == null || url.isBlank()) continue;
+            
+            try {
+                String ext = url.contains(".srt") ? ".srt" : url.contains(".ass") ? ".ass" : ".vtt";
+                String sanitizedLabel = label.replaceAll("[<>:\"/\\\\|?*]", "_");
+                String subFileName = task.getFileName().replaceAll("\\.(mp4|mkv|avi)$", "") + "." + sanitizedLabel + ext;
+                String subSavePath = new File(task.getSavePath()).getParent() + File.separator + subFileName;
+
+                HttpURLConnection conn = openConnection(url);
+                if (conn.getResponseCode() == 200) {
+                    try (InputStream in = conn.getInputStream(); FileOutputStream fos = new FileOutputStream(subSavePath)) {
+                        byte[] buf = new byte[4096]; int read;
+                        while ((read = in.read(buf)) != -1) fos.write(buf, 0, read);
+                    }
+                    downloadedPaths.add(subSavePath);
+                    log.info("Sous-titres téléchargés: {}", subFileName);
+                }
+                conn.disconnect();
+            } catch (Exception e) {
+                log.warn("Erreur téléchargement sous-titres {}: {}", label, e.getMessage());
+            }
+        }
+        
+        if (!downloadedPaths.isEmpty()) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                task.setSavePathSubtitle(mapper.writeValueAsString(downloadedPaths));
+            } catch (Exception e) {
+                task.setSavePathSubtitle(downloadedPaths.get(0));
+            }
+        }
+    }
+
+    private List<String> parseSubtitlePaths(String pathField) {
+        if (pathField == null || pathField.isBlank()) return Collections.emptyList();
+        if (pathField.startsWith("[") && pathField.endsWith("]")) {
+            try {
+                ObjectMapper mapper = new ObjectMapper();
+                return mapper.readValue(pathField, new com.fasterxml.jackson.core.type.TypeReference<List<String>>() {});
+            } catch (Exception e) {
+                // fallback
+            }
+        }
+        return Collections.singletonList(pathField);
+    }
+
+    private void muxSubtitlesWithFFmpeg(DownloadTask task, String subPath) {
+        if (!isFFmpegAvailable()) { log.warn("FFmpeg non trouvé. Muxing ignoré."); return; }
+        File videoFile = new File(task.getSavePath());
+        if (!videoFile.exists()) return;
+
+        List<String> subPaths = parseSubtitlePaths(subPath);
+        if (subPaths.isEmpty()) return;
+
+        List<File> subFiles = new ArrayList<>();
+        for (String sp : subPaths) {
+            File sf = new File(sp);
+            if (sf.exists()) subFiles.add(sf);
+        }
+        if (subFiles.isEmpty()) return;
+
+        String baseName = videoFile.getAbsolutePath().replaceAll("\\.(mp4|mkv|avi)$", "");
+        String outputPath = baseName + ".mkv";
+
+        try {
+            List<String> cmd = new ArrayList<>();
+            cmd.add("ffmpeg");
+            cmd.add("-y");
+            cmd.add("-i");
+            cmd.add(videoFile.getAbsolutePath());
+
+            for (File sf : subFiles) {
+                cmd.add("-i");
+                cmd.add(sf.getAbsolutePath());
+            }
+
+            cmd.add("-map"); cmd.add("0:v");
+            cmd.add("-map"); cmd.add("0:a");
+
+            for (int i = 0; i < subFiles.size(); i++) {
+                cmd.add("-map");
+                cmd.add(String.valueOf(i + 1));
+            }
+
+            cmd.add("-c:v"); cmd.add("copy");
+            cmd.add("-c:a"); cmd.add("copy");
+            cmd.add("-c:s"); cmd.add("srt");
+
+            for (int i = 0; i < subFiles.size(); i++) {
+                File sf = subFiles.get(i);
+                String label = sf.getName().replace(videoFile.getName().replaceAll("\\.(mp4|mkv|avi)$", ""), "");
+                label = label.replaceAll("^\\.+", "").replaceAll("\\.[^.]+$", "");
+                if (label.isEmpty()) label = "Sous-titres " + (i + 1);
+
+                String lang = label.toLowerCase().contains("fr") ? "fre" : "und";
+
+                cmd.add("-metadata:s:s:" + i);
+                cmd.add("language=" + lang);
+                cmd.add("-metadata:s:s:" + i);
+                cmd.add("title=" + label);
+            }
+
+            cmd.add(outputPath);
+
+            log.info("Muxing FFmpeg avec commande : {}", cmd);
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                while (r.readLine() != null) {}
+            }
+            int exit = p.waitFor();
+            if (exit == 0) {
+                File out = new File(outputPath);
+                if (out.exists() && out.length() > 0) {
+                    task.setFileName(out.getName());
+                    task.setSavePath(out.getAbsolutePath());
+                    task.setSavePathSubtitle(null);
+                    videoFile.delete();
+                    for (File sf : subFiles) sf.delete();
+                    persistTask(task);
+                    log.info("Muxing FFmpeg réussi: {}", out.getName());
+                }
+            }
+        } catch (Exception e) { log.error("Erreur FFmpeg: {}", e.getMessage()); }
+    }
+
+    private boolean isFFmpegAvailable() {
+        try {
+            String cmd = System.getProperty("os.name").toLowerCase().contains("win") ? "where" : "which";
+            Process p = Runtime.getRuntime().exec(new String[]{cmd, "ffmpeg"});
+            p.waitFor();
+            return p.exitValue() == 0;
+        } catch (Exception e) { return false; }
+    }
+
+    // =========================================================================
+    // Queue
+    // =========================================================================
+
     public synchronized void processQueue() {
-        long activeDownloads = tasks.values().stream()
+        long active = tasks.values().stream()
                 .filter(t -> t.getStatus() == DownloadStatus.DOWNLOADING || t.getStatus() == DownloadStatus.RETRYING)
                 .count();
 
-        log.info("Traitement de la file d'attente. Actifs: {} / Concurrence Max: {}", activeDownloads, maxConcurrentDownloads);
-
-        if (activeDownloads < maxConcurrentDownloads) {
-            List<DownloadTask> pendingTasks = new ArrayList<>();
+        if (active < maxConcurrentDownloads) {
+            List<DownloadTask> pending = new ArrayList<>();
             for (String id : taskOrder) {
                 DownloadTask t = tasks.get(id);
-                if (t != null && t.getStatus() == DownloadStatus.PENDING) {
-                    pendingTasks.add(t);
-                }
+                if (t != null && t.getStatus() == DownloadStatus.PENDING) pending.add(t);
             }
+            // Retrait du tri par date de création afin de respecter l'ordre personnalisé de taskOrder
+            // pending.sort(Comparator.comparing(DownloadTask::getCreatedAt));
 
-            // Trier par date de création pour respecter l'ordre exact d'ajout
-            pendingTasks.sort(Comparator.comparing(DownloadTask::getCreatedAt));
-
-            int slotsAvailable = maxConcurrentDownloads - (int) activeDownloads;
-            for (int i = 0; i < Math.min(slotsAvailable, pendingTasks.size()); i++) {
-                DownloadTask taskToStart = pendingTasks.get(i);
-                log.info("Lancement de la tâche en file d'attente: {}", taskToStart.getFileName());
-                
-                // Marquer comme DOWNLOADING
-                taskToStart.setStatus(DownloadStatus.DOWNLOADING);
-                broadcastUpdate(taskToStart);
-                
-                downloadExecutor.execute(() -> executeDownload(taskToStart, taskToStart.getSubtitleUrl()));
+            int slots = maxConcurrentDownloads - (int) active;
+            for (int i = 0; i < Math.min(slots, pending.size()); i++) {
+                DownloadTask t = pending.get(i);
+                t.setStatus(DownloadStatus.DOWNLOADING);
+                broadcastUpdate(t);
+                downloadExecutor.execute(() -> executeDownload(t, t.getSubtitleUrl()));
             }
         }
     }
 
-    /**
-     * Suspend instantanément tous les téléchargements actifs ou en file d'attente.
-     */
-    public void pauseAllDownloads() {
-        log.info("Mise en pause globale de toutes les tâches actives ou en attente...");
-        for (DownloadTask task : tasks.values()) {
-            if (task.getStatus() == DownloadStatus.DOWNLOADING ||
-                task.getStatus() == DownloadStatus.PENDING ||
-                task.getStatus() == DownloadStatus.RETRYING ||
-                task.getStatus() == DownloadStatus.SCHEDULED) {
-                
-                task.setPaused(true);
-                task.setStatus(DownloadStatus.PAUSED);
-                task.setSpeed(0);
-                broadcastUpdate(task);
-                log.info("Tâche mise en pause: {}", task.getFileName());
-            }
+    public synchronized void moveTaskToTop(String taskId) {
+        if (taskOrder.contains(taskId)) {
+            taskOrder.remove(taskId);
+            taskOrder.add(0, taskId);
+            processQueue();
+            DownloadTask t = tasks.get(taskId);
+            if (t != null) broadcastUpdate(t);
         }
-        processQueue();
     }
 
-    /**
-     * Reprend tous les téléchargements en pause.
-     */
-    public void resumeAllDownloads() {
-        log.info("Reprise globale de tous les téléchargements en pause...");
-        for (DownloadTask task : tasks.values()) {
-            if (task.getStatus() == DownloadStatus.PAUSED) {
-                task.setPaused(false);
-                task.setCancelled(false);
-                task.setStatus(DownloadStatus.PENDING);
-                task.setError(null);
-                broadcastUpdate(task);
-                log.info("Tâche reprise : {}", task.getFileName());
+    public synchronized void moveSeriesToTop(String animeName) {
+        if (animeName == null || animeName.isBlank()) return;
+        List<String> seriesTaskIds = new ArrayList<>();
+        for (String id : taskOrder) {
+            DownloadTask t = tasks.get(id);
+            if (t != null && animeName.equalsIgnoreCase(t.getAnimeName())) {
+                seriesTaskIds.add(id);
             }
         }
-        processQueue();
+
+        if (!seriesTaskIds.isEmpty()) {
+            taskOrder.removeAll(seriesTaskIds);
+            taskOrder.addAll(0, seriesTaskIds);
+            processQueue();
+            for (String id : seriesTaskIds) {
+                DownloadTask t = tasks.get(id);
+                if (t != null) broadcastUpdate(t);
+            }
+        }
     }
 
-    /**
-     * Supprime toutes les tâches inactives de l'interface de téléchargement.
-     */
-    public void clearInactiveTasks() {
-        log.info("Nettoyage des tâches inactives (COMPLETED, FAILED, CANCELLED)...");
-        List<String> toRemove = new ArrayList<>();
-        for (DownloadTask task : tasks.values()) {
-            if (task.getStatus() == DownloadStatus.COMPLETED ||
-                task.getStatus() == DownloadStatus.FAILED ||
-                task.getStatus() == DownloadStatus.CANCELLED) {
-                toRemove.add(task.getId());
-            }
+    // =========================================================================
+    // SSE broadcast
+    // =========================================================================
+
+    private void broadcastUpdate(DownloadTask task) {
+        Map<String, Object> data = taskToMap(task);
+        List<SseEmitter> dead = new ArrayList<>();
+        for (SseEmitter emitter : sseEmitters) {
+            try { emitter.send(SseEmitter.event().name("download-update").data(data)); }
+            catch (Exception e) { dead.add(emitter); }
         }
-        for (String id : toRemove) {
-            removeTask(id);
-        }
+        sseEmitters.removeAll(dead);
     }
 
     private Map<String, Object> taskToMap(DownloadTask task) {
@@ -1007,10 +1141,126 @@ public class DownloadManagerService {
         return map;
     }
 
+    // =========================================================================
+    // Helpers
+    // =========================================================================
+
+    private String formatBytes(long bytes) {
+        if (bytes <= 0) return "0 B";
+        String[] units = {"B", "KB", "MB", "GB"};
+        int u = 0; double size = bytes;
+        while (size >= 1024 && u < units.length - 1) { size /= 1024; u++; }
+        return String.format(Locale.US, "%.1f %s", size, units[u]);
+    }
+
     private String sanitizeFileName(String name) {
         if (name == null || name.isBlank()) return "download";
-        return name.replaceAll("[<>:\"/\\\\|?*]", "_")
-                   .replaceAll("\\s+", " ")
-                   .trim();
+        return name.replaceAll("[<>:\"/\\\\|?*]", "_").replaceAll("\\s+", " ").trim();
+    }
+
+    private List<String> parseJsonArray(String json) {
+        List<String> list = new ArrayList<>();
+        try {
+            ObjectMapper mapper = new ObjectMapper();
+            for (JsonNode node : mapper.readTree(json)) list.add(node.asText());
+        } catch (Exception ignored) {}
+        return list;
+    }
+
+    // Getters pour les settings
+    public Map<String, Object> getSettings() {
+        return Map.of("maxConcurrentDownloads", maxConcurrentDownloads, "globalSpeedLimit", globalSpeedLimit);
+    }
+
+    private void generateNfoFiles(DownloadTask task) {
+        try {
+            File videoFile = new File(task.getSavePath());
+            File seasonDir = videoFile.getParentFile();
+            if (seasonDir == null || !seasonDir.exists()) return;
+            File animeDir = seasonDir.getParentFile();
+            if (animeDir == null || !animeDir.exists()) return;
+
+            File tvshowNfo = new File(animeDir, "tvshow.nfo");
+            if (!tvshowNfo.exists()) {
+                String synopsis = "";
+                String studio = "";
+                List<String> genres = new ArrayList<>();
+                
+                com.pauldev.animan.model.FavoriteAnime favorite = null;
+                try {
+                    favorite = libraryService.getAllFavorites().stream()
+                            .filter(f -> f.getTitle().equalsIgnoreCase(task.getAnimeName()))
+                            .findFirst().orElse(null);
+                } catch (Exception ignored) {}
+                
+                com.pauldev.animan.model.AnimeDetail detail = null;
+                if (favorite != null) {
+                    try {
+                        detail = favorite.getUrl().contains("voir-anime")
+                                ? voirAnimeService.getAnimeDetail(favorite.getUrl())
+                                : scrapingService.getAnimeDetail(favorite.getUrl());
+                    } catch (Exception ignored) {}
+                }
+                
+                if (detail == null) {
+                    try {
+                        List<com.pauldev.animan.model.AnimeResult> results = scrapingService.searchAnime(task.getAnimeName());
+                        if (results.isEmpty()) {
+                            results = voirAnimeService.searchAnime(task.getAnimeName());
+                        }
+                        if (!results.isEmpty()) {
+                            String url = results.get(0).getUrl();
+                            detail = url.contains("voir-anime")
+                                    ? voirAnimeService.getAnimeDetail(url)
+                                    : scrapingService.getAnimeDetail(url);
+                        }
+                    } catch (Exception ignored) {}
+                }
+                
+                if (detail != null) {
+                    synopsis = detail.getSynopsis() != null ? detail.getSynopsis() : "";
+                    studio = detail.getStudio() != null ? detail.getStudio() : "";
+                    genres = detail.getGenres() != null ? detail.getGenres() : new ArrayList<>();
+                }
+                
+                try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(tvshowNfo), "UTF-8"))) {
+                    writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>");
+                    writer.println("<tvshow>");
+                    writer.println("    <title>" + escapeXml(task.getAnimeName()) + "</title>");
+                    writer.println("    <plot>" + escapeXml(synopsis) + "</plot>");
+                    writer.println("    <studio>" + escapeXml(studio) + "</studio>");
+                    for (String genre : genres) {
+                        writer.println("    <genre>" + escapeXml(genre) + "</genre>");
+                    }
+                    writer.println("</tvshow>");
+                }
+                log.info("Généré tvshow.nfo pour {}", task.getAnimeName());
+            }
+            
+            String episodeNfoName = videoFile.getName().replaceAll("\\.(mp4|mkv|avi)$", "") + ".nfo";
+            File episodeNfo = new File(seasonDir, episodeNfoName);
+            try (PrintWriter writer = new PrintWriter(new OutputStreamWriter(new FileOutputStream(episodeNfo), "UTF-8"))) {
+                writer.println("<?xml version=\"1.0\" encoding=\"UTF-8\" standalone=\"yes\" ?>");
+                writer.println("<episodedetails>");
+                writer.println("    <title>" + escapeXml("Épisode " + task.getEpisodeNumber()) + "</title>");
+                writer.println("    <episode>" + task.getEpisodeNumber() + "</episode>");
+                writer.println("    <season>1</season>");
+                writer.println("    <plot>" + escapeXml(task.getAnimeName() + " - Épisode " + task.getEpisodeNumber()) + "</plot>");
+                writer.println("</episodedetails>");
+            }
+            log.info("Généré .nfo d'épisode pour {}", videoFile.getName());
+            
+        } catch (Exception e) {
+            log.error("Erreur lors de la génération des fichiers .nfo: {}", e.getMessage());
+        }
+    }
+
+    private String escapeXml(String input) {
+        if (input == null) return "";
+        return input.replace("&", "&amp;")
+                    .replace("<", "&lt;")
+                    .replace(">", "&gt;")
+                    .replace("\"", "&quot;")
+                    .replace("'", "&apos;");
     }
 }

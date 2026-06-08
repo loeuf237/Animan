@@ -43,6 +43,7 @@ public class DownloadTask {
     private int retryCount;
     private String subtitleUrl;
     private String savePathSubtitle;
+    private String subtitlesJson;
 
     private String downloadPageUrl;
     private String directDownloadUrl;

@@ -3,79 +3,118 @@
 <head th:replace="~{fragments/navbar :: head('Historique')}"></head>
 <body>
 <nav th:replace="~{fragments/navbar :: navbar}"></nav>
-<div class="main-content">
 
-  <div class="page-header fade-in">
-    <h1 class="page-title">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
-      Historique des téléchargements
-    </h1>
-    <p class="page-sub" th:text="${tasks.size()} + ' entrée(s) au total'">0 entrées</p>
-  </div>
-
-  <div th:if="${tasks == null or tasks.isEmpty()}" class="empty-state fade-in">
-    <div class="empty-icon">📋</div>
-    <h3>Aucun historique</h3>
-    <p>Les téléchargements terminés apparaîtront ici.</p>
-    <a href="/" class="btn btn-primary">Rechercher des animés</a>
-  </div>
-
-  <div th:unless="${tasks == null or tasks.isEmpty()}" class="fade-in">
-    <!-- Filtres -->
-    <div class="history-filters">
-      <button class="filter-btn active" data-status="ALL" onclick="filterHistory(this)">Tous</button>
-      <button class="filter-btn" data-status="COMPLETED" onclick="filterHistory(this)">Terminés</button>
-      <button class="filter-btn" data-status="FAILED" onclick="filterHistory(this)">Échoués</button>
-      <button class="filter-btn" data-status="CANCELLED" onclick="filterHistory(this)">Annulés</button>
+<main class="main-content">
+  <section id="player-section" class="player-section" style="display:none; margin-bottom: 2rem;">
+    <h3 class="section-label" style="display: flex; align-items: center; gap: 0.5rem;">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: currentColor;"><path d="M7 4v16l13-8Z"/></svg>
+      Lecteur integre
+    </h3>
+    <div class="player-wrap" style="max-width: 800px; margin: 1rem 0;">
+      <video id="plyr-player" controls crossorigin playsinline style="width: 100%; border-radius: 8px;">
+        <source id="player-source" src="" type="video/mp4"/>
+      </video>
     </div>
+    <button class="btn btn-sm" type="button" onclick="closePlayer()">Fermer le lecteur</button>
+  </section>
 
+  <section class="page-header fade-in">
+    <div>
+      <h1 class="page-title">Historique des telechargements</h1>
+      <p class="page-sub" th:text="${tasks.size()} + ' entree(s) au total'">0 entree</p>
+    </div>
+    <div style="display: flex; gap: 0.5rem; flex-wrap: wrap; align-items: center;">
+      <div class="history-filters">
+        <button class="filter-btn active" data-status="ALL" type="button" onclick="filterHistory(this)">Tous</button>
+        <button class="filter-btn" data-status="COMPLETED" type="button" onclick="filterHistory(this)">Termines</button>
+        <button class="filter-btn" data-status="FAILED" type="button" onclick="filterHistory(this)">Echoues</button>
+        <button class="filter-btn" data-status="CANCELLED" type="button" onclick="filterHistory(this)">Annules</button>
+      </div>
+      <div style="display: flex; gap: 0.5rem;">
+        <button class="btn btn-sm" type="button" onclick="clearHistoryByStatus('FAILED,CANCELLED')"
+                title="Supprimer les echecs et annulations" style="color: var(--warn);">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;vertical-align:middle;margin-right:4px;"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></svg>
+          Nettoyer echecs
+        </button>
+        <button class="btn btn-sm btn-danger" type="button" onclick="clearHistory()"
+                title="Vider tout l'historique">
+          <svg viewBox="0 0 24 24" style="width:14px;height:14px;fill:none;stroke:currentColor;stroke-width:2;vertical-align:middle;margin-right:4px;"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></svg>
+          Vider l'historique
+        </button>
+      </div>
+    </div>
+  </section>
+
+  <section th:if="${tasks == null or tasks.isEmpty()}" class="empty-state fade-in">
+    <h3>Aucun historique</h3>
+    <p>Les telechargements termines apparaitront ici.</p>
+    <a href="/" class="btn btn-primary">Rechercher des animes</a>
+  </section>
+
+  <section th:unless="${tasks == null or tasks.isEmpty()}" class="fade-in">
     <div class="history-table-wrap">
-      <table class="history-table">
+      <table class="history-table" id="history-table">
         <thead>
-          <tr>
-            <th>Animé</th>
-            <th>Épisode</th>
-            <th>Fichier</th>
-            <th>Taille</th>
-            <th>Statut</th>
-            <th>Date</th>
-          </tr>
+        <tr>
+          <th>Anime</th>
+          <th>Episode</th>
+          <th>Fichier</th>
+          <th>Taille</th>
+          <th>Statut</th>
+          <th>Date</th>
+          <th style="width: 80px; text-align: center;">Actions</th>
+        </tr>
         </thead>
         <tbody>
-          <tr th:each="task : ${tasks}"
-              th:data-status="${task.status.name()}"
-              th:classappend="${task.status.name() == 'COMPLETED'} ? 'row-ok' : (${task.status.name() == 'FAILED'} ? 'row-err' : 'row-other')">
-            <td th:text="${task.animeName}">Anime</td>
-            <td th:text="'Ep ' + ${task.episodeNumber}">Ep 1</td>
-            <td class="td-file" th:text="${task.fileName}">file.mp4</td>
-            <td>
-              <span th:if="${task.totalBytes > 0}"
-                    th:text="${#numbers.formatDecimal(task.totalBytes / 1048576.0, 1, 1)} + ' MB'">0 MB</span>
-              <span th:unless="${task.totalBytes > 0}">—</span>
-            </td>
-            <td>
-              <span class="status-badge"
-                    th:classappend="${task.status.name() == 'COMPLETED'} ? 'badge-ok' : (${task.status.name() == 'FAILED'} ? 'badge-err' : 'badge-other')"
-                    th:text="${task.status}">STATUS</span>
-            </td>
-            <td th:text="${task.completedAt != null ? #temporals.format(task.completedAt,'dd/MM/yyyy HH:mm') : #temporals.format(task.createdAt,'dd/MM/yyyy HH:mm')}">date</td>
-          </tr>
+        <tr th:each="task : ${tasks}"
+            th:id="'history-row-' + ${task.id}"
+            th:data-status="${task.status.name()}">
+          <td th:text="${task.animeName}">Anime</td>
+          <td th:text="'Ep ' + ${task.episodeNumber}">Ep 1</td>
+          <td class="td-file" th:text="${task.fileName}">file.mp4</td>
+          <td>
+            <span th:if="${task.totalBytes > 0}"
+                  th:text="${#numbers.formatDecimal(task.totalBytes / 1048576.0, 1, 1)} + ' MB'">0 MB</span>
+            <span th:unless="${task.totalBytes > 0}">-</span>
+          </td>
+          <td style="display: flex; align-items: center; gap: 0.5rem;">
+            <button th:if="${task.status.name() == 'COMPLETED'}" class="btn btn-icon btn-primary btn-sm"
+                    th:data-task-id="${task.id}" data-action="play" title="Lire" style="padding: 0.2rem;">
+              <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: currentColor;"><path d="M7 4v16l13-8Z"/></svg>
+            </button>
+            <span class="status-badge"
+                  th:classappend="${task.status.name() == 'COMPLETED'} ? ' badge-ok' : (${task.status.name() == 'FAILED'} ? ' badge-err' : ' badge-other')"
+                  th:text="${task.status}">STATUS</span>
+          </td>
+          <td th:text="${task.completedAt != null ? #temporals.format(task.completedAt,'dd/MM/yyyy HH:mm') : #temporals.format(task.createdAt,'dd/MM/yyyy HH:mm')}">date</td>
+          <td style="text-align: center;">
+            <button class="btn btn-icon btn-danger btn-sm"
+                    th:data-task-id="${task.id}" data-action="delete-history"
+                    title="Supprimer cette entree" style="padding: 0.2rem;">
+              <svg viewBox="0 0 24 24" style="width: 14px; height: 14px; fill: none; stroke: currentColor; stroke-width: 2;">
+                <path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/>
+              </svg>
+            </button>
+          </td>
+        </tr>
         </tbody>
       </table>
     </div>
-  </div>
+  </section>
+</main>
 
-</div>
 <div class="toast-container" id="toast-container"></div>
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css"/>
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="/js/app.js"></script>
 <script>
 document.getElementById('nav-history')?.classList.add('active');
 function filterHistory(btn) {
-  document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.filter-btn').forEach(item => item.classList.remove('active'));
   btn.classList.add('active');
   const status = btn.dataset.status;
-  document.querySelectorAll('.history-table tbody tr').forEach(tr => {
-    tr.style.display = (status === 'ALL' || tr.dataset.status === status) ? '' : 'none';
+  document.querySelectorAll('#history-table tbody tr').forEach(row => {
+    row.style.display = status === 'ALL' || row.dataset.status === status ? '' : 'none';
   });
 }
 </script>

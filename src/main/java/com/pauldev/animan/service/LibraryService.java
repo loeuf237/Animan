@@ -45,6 +45,13 @@ public class LibraryService {
         });
     }
 
+    @Transactional
+    public void removeAllFavorites() {
+        long count = favoriteRepo.count();
+        favoriteRepo.deleteAll();
+        log.info("Bibliothèque vidée: {} favoris supprimés", count);
+    }
+
     public boolean isFavorite(String url) {
         return favoriteRepo.existsByUrl(url);
     }

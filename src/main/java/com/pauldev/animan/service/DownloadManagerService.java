@@ -634,6 +634,15 @@ public class DownloadManagerService {
             isResume = true;
         }
 
+        if (totalBytes > 0) {
+            long requiredSpace = totalBytes - existingLength;
+            File disk = new File(downloadDir);
+            long freeSpace = disk.getFreeSpace();
+            if (requiredSpace > 0 && freeSpace < requiredSpace) {
+                throw new IOException("Espace disque insuffisant (Requis: " + formatBytes(requiredSpace) + ", Disponible: " + formatBytes(freeSpace) + ")");
+            }
+        }
+
         HttpURLConnection connection = openConnection(directUrl);
         if (isResume) connection.setRequestProperty("Range", "bytes=" + existingLength + "-");
         int responseCode = connection.getResponseCode();
@@ -704,7 +713,15 @@ public class DownloadManagerService {
                 hc.disconnect();
             } catch (Exception ignored) {}
         }
-        if (totalAllChunks > 0) { task.setTotalBytes(totalAllChunks); broadcastUpdate(task); }
+        if (totalAllChunks > 0) {
+            task.setTotalBytes(totalAllChunks);
+            broadcastUpdate(task);
+            File disk = new File(downloadDir);
+            long freeSpace = disk.getFreeSpace();
+            if (freeSpace < totalAllChunks) {
+                throw new IOException("Espace disque insuffisant (Requis: " + formatBytes(totalAllChunks) + ", Disponible: " + formatBytes(freeSpace) + ")");
+            }
+        }
 
         long downloadedTotal = 0;
         for (int i = 0; i < chunks.size(); i++) {
@@ -816,20 +833,51 @@ public class DownloadManagerService {
 
     private void applyThrottle(DownloadTask task, int bytesRead) throws InterruptedException {
         long speedLimit = task.getMaxSpeedLimit() > 0 ? task.getMaxSpeedLimit() : globalSpeedLimit;
-        // Throttle simple: pas de compteur agrégé ici pour simplifier
+        if (speedLimit <= 0) return;
+
+        if (task.getThrottleStartTimeMs() == 0) {
+            task.setThrottleStartTimeMs(System.currentTimeMillis());
+            task.setThrottleBytesWritten(0);
+        }
+
+        task.setThrottleBytesWritten(task.getThrottleBytesWritten() + bytesRead);
+        long elapsedMs = System.currentTimeMillis() - task.getThrottleStartTimeMs();
+        if (elapsedMs == 0) elapsedMs = 1;
+
+        long expectedTimeMs = (task.getThrottleBytesWritten() * 1000) / speedLimit;
+        long sleepTimeMs = expectedTimeMs - elapsedMs;
+
+        if (sleepTimeMs > 0) {
+            Thread.sleep(Math.min(sleepTimeMs, 1000));
+        }
+
+        if (elapsedMs > 2000 || task.getThrottleBytesWritten() > 1024 * 1024) {
+            task.setThrottleStartTimeMs(System.currentTimeMillis());
+            task.setThrottleBytesWritten(0);
+        }
     }
 
     private void finalizeTask(DownloadTask task) {
-        task.setProgress(100.0); task.setStatus(DownloadStatus.COMPLETED);
-        task.setCompletedAt(LocalDateTime.now()); task.setSpeed(0);
+        task.setProgress(100.0);
+        task.setSpeed(0);
+
+        if (task.getSavePathSubtitle() != null && isFFmpegAvailable()) {
+            task.setStatus(DownloadStatus.MUXING);
+            broadcastUpdate(task);
+            persistTask(task);
+            muxSubtitlesWithFFmpeg(task, task.getSavePathSubtitle());
+        }
+
+        task.setStatus(DownloadStatus.COMPLETED);
+        task.setCompletedAt(LocalDateTime.now());
         broadcastUpdate(task);
         persistTask(task);
+
         // Marquer comme téléchargé dans la progression
         libraryService.markAsDownloaded(
             task.getDownloadPageUrl() != null ? task.getDownloadPageUrl() : "",
             task.getAnimeName(), task.getEpisodeNumber(), "");
         log.info("Téléchargement terminé: {} ({})", task.getFileName(), task.getFormattedTotalSize());
-        if (task.getSavePathSubtitle() != null) muxSubtitlesWithFFmpeg(task, task.getSavePathSubtitle());
         
         if (plexOrganization) {
             generateNfoFiles(task);
@@ -1038,7 +1086,7 @@ public class DownloadManagerService {
         } catch (Exception e) { log.error("Erreur FFmpeg: {}", e.getMessage()); }
     }
 
-    private boolean isFFmpegAvailable() {
+    public boolean isFFmpegAvailable() {
         try {
             String cmd = System.getProperty("os.name").toLowerCase().contains("win") ? "where" : "which";
             Process p = Runtime.getRuntime().exec(new String[]{cmd, "ffmpeg"});
@@ -1104,6 +1152,24 @@ public class DownloadManagerService {
                 if (t != null) broadcastUpdate(t);
             }
         }
+    }
+
+    public synchronized void reorderTasks(List<String> orderedIds) {
+        if (orderedIds == null) return;
+        List<String> newOrder = new ArrayList<>();
+        for (String id : orderedIds) {
+            if (tasks.containsKey(id)) {
+                newOrder.add(id);
+            }
+        }
+        for (String id : taskOrder) {
+            if (!newOrder.contains(id)) {
+                newOrder.add(id);
+            }
+        }
+        taskOrder.clear();
+        taskOrder.addAll(newOrder);
+        processQueue();
     }
 
     // =========================================================================

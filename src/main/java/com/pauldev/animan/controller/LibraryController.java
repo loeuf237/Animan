@@ -9,6 +9,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Controller;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.*;
 
@@ -100,6 +101,17 @@ public class LibraryController {
         }
     }
 
+    @DeleteMapping("/api/favorites/all")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> clearAllFavorites() {
+        try {
+            libraryService.removeAllFavorites();
+            return ResponseEntity.ok(Map.of("success", true, "message", "Bibliothèque vidée"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
     // =========================================================================
     // Progression API
     // =========================================================================
@@ -141,6 +153,42 @@ public class LibraryController {
         if (animeName != null && !animeName.isBlank())
             return libraryService.getHistoryByAnime(animeName);
         return libraryService.getHistory();
+    }
+
+    @DeleteMapping("/api/history/{id}")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> deleteHistoryEntry(@PathVariable String id) {
+        try {
+            taskRepo.deleteById(id);
+            return ResponseEntity.ok(Map.of("success", true));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
+    }
+
+    @Transactional
+    @DeleteMapping("/api/history")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> clearHistory(
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String animeName) {
+        try {
+            if (animeName != null && !animeName.isBlank()) {
+                taskRepo.deleteByAnimeName(animeName);
+                return ResponseEntity.ok(Map.of("success", true, "message", "Historique de " + animeName + " supprimé"));
+            }
+            if (status != null && !status.isBlank()) {
+                var statuses = java.util.Arrays.stream(status.split(","))
+                    .map(s -> com.pauldev.animan.model.DownloadTask.DownloadStatus.valueOf(s.trim()))
+                    .toList();
+                taskRepo.deleteByStatusIn(statuses);
+                return ResponseEntity.ok(Map.of("success", true, "message", "Entrées supprimées"));
+            }
+            taskRepo.deleteAll();
+            return ResponseEntity.ok(Map.of("success", true, "message", "Historique entièrement vidé"));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("error", e.getMessage()));
+        }
     }
 
     // =========================================================================

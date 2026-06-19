@@ -63,6 +63,9 @@ public class DownloadTask {
     @Builder.Default
     private transient volatile boolean paused = false;
 
+    private transient volatile long throttleBytesWritten;
+    private transient volatile long throttleStartTimeMs;
+
     public enum DownloadStatus {
         PENDING,
         SCHEDULED,
@@ -71,7 +74,8 @@ public class DownloadTask {
         PAUSED,
         COMPLETED,
         FAILED,
-        CANCELLED
+        CANCELLED,
+        MUXING
     }
 
     /**

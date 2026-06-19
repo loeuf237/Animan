@@ -1,136 +1,290 @@
 <!DOCTYPE html>
 <html lang="fr" xmlns:th="http://www.thymeleaf.org">
-<head th:replace="~{fragments/navbar :: head('Téléchargements')}"></head>
+<head th:replace="~{fragments/navbar :: head('Telechargements')}"></head>
 <body>
 <nav th:replace="~{fragments/navbar :: navbar}"></nav>
 
-<div class="main-content">
-  <div class="page-header fade-in">
-    <h1 class="page-title">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-        <polyline points="7 10 12 15 17 10"/>
-        <line x1="12" y1="15" x2="12" y2="3"/>
-      </svg>
-      Téléchargements
-    </h1>
-  </div>
+<main class="main-content">
+  <style>
+    .queue-row {
+      cursor: grab;
+    }
+    .queue-row:active {
+      cursor: grabbing;
+    }
+    .queue-row.dragging {
+      opacity: 0.4;
+      border: 1px dashed var(--accent-color, #70a1ff);
+    }
+    .badge-warn {
+      background-color: rgba(255, 165, 0, 0.2);
+      color: #ffa500;
+    }
+    .dl-speed-limit-badge {
+      font-size: 0.75rem;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      color: var(--text-muted, #a0a0a0);
+      margin-top: 0.25rem;
+      display: inline-flex;
+      align-items: center;
+      gap: 0.2rem;
+      width: fit-content;
+    }
+    .speed-limit-btn {
+      cursor: pointer;
+      border: none;
+      background: none;
+      color: var(--accent-color, #70a1ff);
+      font-size: 0.75rem;
+      padding: 0;
+      text-decoration: underline;
+    }
+    .speed-limit-btn:hover {
+      color: var(--accent-color-hover, #5352ed);
+    }
+    .dl-scheduled-info {
+      font-size: 0.8rem;
+      color: #ff9f43;
+      display: flex;
+      align-items: center;
+      gap: 0.3rem;
+    }
+  </style>
 
-  <!-- Barre de contrôle globale -->
-  <div class="dl-controls fade-in">
-    <div class="dl-controls-left">
-      <button class="btn btn-sm" id="pause-all-btn">⏸ Tout mettre en pause</button>
-      <button class="btn btn-sm btn-primary" id="resume-all-btn">▶ Tout reprendre</button>
-      <button class="btn btn-sm" id="clean-btn">🧹 Nettoyer</button>
-    </div>
-    <div class="dl-controls-right">
-      <button class="btn btn-sm" id="toggle-settings-btn" style="background: rgba(124,106,247,0.12); border-color: var(--accent); color: var(--accent);">⚙️ Paramètres</button>
-    </div>
-  </div>
-
-  <!-- Panneau de Configuration (Premium Card, caché par défaut) -->
-  <div class="settings-card fade-in" id="settings-panel" style="display: none; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.25rem; margin-bottom: 1.5rem;">
-    <h3 style="font-size: 1.05rem; font-weight: 700; margin-bottom: 1rem; color: var(--accent); display: flex; align-items: center; gap: 0.4rem;">
-      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
-      Configuration de Téléchargement
+  <section id="player-section" class="player-section" style="display:none; margin-bottom: 2rem;">
+    <h3 class="section-label" style="display: flex; align-items: center; gap: 0.5rem;">
+      <svg viewBox="0 0 24 24" style="width: 24px; height: 24px; fill: currentColor;"><path d="M7 4v16l13-8Z"/></svg>
+      Lecteur integre
     </h3>
-    <div style="display: flex; flex-wrap: wrap; gap: 1.25rem; align-items: flex-end;">
-      
-      <div class="settings-group" style="display: flex; flex-direction: column; gap: 0.4rem;">
-        <label for="max-concurrent-input" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">DL simultanés :</label>
-        <input type="number" id="max-concurrent-input" class="input-premium" style="width: 80px;" min="1" max="20" value="3"/>
-      </div>
+    <div class="player-wrap" style="max-width: 800px; margin: 1rem 0;">
+      <video id="plyr-player" controls crossorigin playsinline style="width: 100%; border-radius: 8px;">
+        <source id="player-source" src="" type="video/mp4"/>
+      </video>
+    </div>
+    <button class="btn btn-sm" type="button" onclick="closePlayer()">Fermer le lecteur</button>
+  </section>
 
-      <div class="settings-group" style="display: flex; flex-direction: column; gap: 0.4rem;">
-        <label for="global-speed-input-settings" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">Vitesse max (KB/s) :</label>
-        <input type="number" id="global-speed-input-settings" class="input-premium" style="width: 110px;" placeholder="Illimitée" min="0"/>
-      </div>
+  <section class="dashboard-header fade-in">
+    <div>
+      <h1 class="page-title">Gestionnaire de telechargements</h1>
+      <p class="page-sub">Gerez votre file d'attente, vos priorites et vos telechargements actifs.</p>
+    </div>
 
-      <div class="settings-group" style="display: flex; flex-direction: column; gap: 0.4rem; min-width: 180px;">
-        <label for="user-agent-select" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">User-Agent :</label>
-        <select id="user-agent-select" class="input-premium" style="padding: 0.35rem 0.5rem; background: var(--bg); border: 1px solid var(--border); border-radius: var(--radius-sm); color: var(--text);">
-          <option value="Random (Rotator)">Aléatoire (Rotator)</option>
+    <div class="stats-grid" id="download-stats">
+      <div class="stat-card">
+        <strong id="stat-active">0</strong>
+        <span>Telechargements en cours</span>
+      </div>
+      <div class="stat-card stat-blue">
+        <strong id="stat-queued">0</strong>
+        <span>En file d'attente</span>
+      </div>
+      <div class="stat-card stat-green">
+        <strong id="stat-speed">0 B/s</strong>
+        <span>Vitesse actuelle</span>
+        <i class="mini-spark"></i>
+      </div>
+    </div>
+  </section>
+
+  <section class="download-toolbar fade-in">
+    <div class="download-tabs">
+      <button class="tab-btn active" type="button" data-download-filter="queue" onclick="filterDownloadView(this)">File d'attente</button>
+      <button class="tab-btn" type="button" data-download-filter="done" onclick="filterDownloadView(this)">Termines</button>
+      <button class="tab-btn" type="button" data-download-filter="all" onclick="filterDownloadView(this)">Tous</button>
+    </div>
+    <div class="download-actions">
+
+      <button class="btn" id="pause-all-btn" type="button">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14M16 5v14"/></svg>
+        Tout mettre en pause
+      </button>
+      <button class="btn btn-success" id="resume-all-btn" type="button">
+        <svg viewBox="0 0 24 24"><path d="M7 4v16l13-8Z"/></svg>
+        Tout reprendre
+      </button>
+      <button class="btn" id="toggle-settings-btn" type="button">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.4 1a7 7 0 0 0-1.8-1L14.4 3H9.6L9.2 6.1a7 7 0 0 0-1.8 1L5 6.1l-2 3.4L5 11a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.4-1a7 7 0 0 0 1.8 1l.4 3.1h4.8l.4-3.1a7 7 0 0 0 1.8-1l2.4 1 2-3.4-2-1.5a7 7 0 0 0 .1-1Z"/></svg>
+        Parametres
+      </button>
+      <button class="btn btn-danger" id="clean-btn" type="button">
+        <svg viewBox="0 0 24 24"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="m19 6-1 14H6L5 6"/></svg>
+        Nettoyer
+      </button>
+    </div>
+  </section>
+
+  <section class="settings-card fade-in" id="settings-panel">
+    <div class="settings-grid">
+      <div class="settings-group">
+        <label for="max-concurrent-input">DL simultanes</label>
+        <input type="number" id="max-concurrent-input" class="input-premium" min="1" max="20" value="3"/>
+      </div>
+      <div class="settings-group">
+        <label for="global-speed-input-settings">Vitesse max (KB/s)</label>
+        <input type="number" id="global-speed-input-settings" class="input-premium" placeholder="Illimitee" min="0"/>
+      </div>
+      <div class="settings-group">
+        <label for="user-agent-select">User-Agent</label>
+        <select id="user-agent-select" class="input-premium">
+          <option value="Random (Rotator)">Aleatoire (Rotator)</option>
           <option value="Chrome">Google Chrome (Windows)</option>
           <option value="Firefox">Mozilla Firefox (Windows)</option>
           <option value="Safari">Apple Safari (macOS)</option>
           <option value="Edge">Microsoft Edge (Windows)</option>
-          <option value="Custom">Saisie personnalisée...</option>
+          <option value="Custom">Saisie personnalisee</option>
         </select>
       </div>
-
-      <div class="settings-group" id="custom-ua-group" style="display: none; flex-direction: column; gap: 0.4rem; flex: 1; min-width: 250px;">
-        <label for="custom-ua-input" style="font-size: 0.8rem; font-weight: 600; color: var(--text-secondary);">User-Agent personnalisé :</label>
-        <input type="text" id="custom-ua-input" class="input-premium" style="width: 100%; padding: 5px 8px;" placeholder="Mozilla/5.0..."/>
+      <div class="settings-group" id="custom-ua-group" style="display:none">
+        <label for="custom-ua-input">User-Agent personnalise</label>
+        <input type="text" id="custom-ua-input" class="input-premium" placeholder="Mozilla/5.0..."/>
       </div>
-
-      <div class="settings-group" style="display: flex; align-items: center; gap: 0.5rem; height: 32px;">
-        <input type="checkbox" id="plex-org-cb" style="cursor: pointer; width: 15px; height: 15px;"/>
-        <label for="plex-org-cb" style="font-size: 0.82rem; color: var(--text-secondary); cursor: pointer; user-select: none;">Organisation Plex/Jellyfin</label>
+      <div class="settings-group">
+        <label class="auto-dl-label" for="plex-org-cb">
+          <input type="checkbox" id="plex-org-cb"/>
+          Organisation Plex/Jellyfin
+        </label>
       </div>
-
-      <div class="settings-group" style="margin-left: auto;">
-        <button class="btn btn-primary" id="save-settings-btn" style="padding: 0.45rem 1.2rem; font-weight: 600;">Enregistrer</button>
+      <div class="settings-group">
+        <label>Statut de FFmpeg</label>
+        <span id="ffmpeg-status-badge" class="status-badge" style="width: fit-content; margin-top: 0.5rem; display: inline-block;">Détection...</span>
+      </div>
+      <div class="settings-actions">
+        <button class="btn btn-primary" id="save-settings-btn" type="button">Enregistrer</button>
       </div>
     </div>
-  </div>
+  </section>
 
-  <!-- Liste des téléchargements (peuplée via SSE + SSR) -->
-  <div id="download-list" class="dl-list fade-in">
-
-    <div th:each="task : ${tasks}"
-         th:id="'task-' + ${task.id}"
-         class="dl-task-row"
-         th:data-id="${task.id}"
-         th:data-status="${task.status.name()}">
-      <div class="dl-task-header">
-        <span class="dl-task-name"
-              th:text="${task.animeName} + ' — Ép.' + ${task.episodeNumber} + ' ' + ${task.fileName}">
-          Anime
-        </span>
-        <span class="dl-task-status status-badge"
-              th:classappend="${task.status.name() == 'COMPLETED'} ? 'badge-ok' :
-                               (${task.status.name() == 'FAILED'} ? 'badge-err' : 'badge-other')"
-              th:text="${task.status}">STATUS</span>
-      </div>
-
-      <div class="dl-progress-wrap"
-           th:style="${task.status.name() == 'DOWNLOADING' or task.progress > 0} ? 'display:flex' : 'display:none'">
-        <div class="dl-progress-bar">
-          <div class="dl-progress-fill" th:style="'width:' + ${task.progress} + '%'"></div>
+  <section class="fade-in" data-download-group="queue">
+    <h2 class="download-section-title">
+      <span class="section-marker"></span>
+      Telechargements en cours
+    </h2>
+    <div id="download-list" class="dl-list">
+      <div th:each="task : ${tasks}"
+           th:if="${task.status.name() == 'DOWNLOADING' or task.status.name() == 'RETRYING' or task.status.name() == 'PAUSED' or task.status.name() == 'MUXING'}"
+           th:id="'task-' + ${task.id}"
+           class="dl-task-row"
+           th:data-id="${task.id}"
+           th:data-status="${task.status.name()}">
+        <div class="dl-main">
+          <div class="dl-cover" th:text="${#strings.substring(task.animeName,0,1)}">A</div>
+          <div>
+            <span class="dl-task-name" th:text="${task.animeName}">Anime</span>
+            <span class="dl-subtitle" th:text="'Episode ' + ${task.episodeNumber} + ' - ' + ${task.fileName}">Episode</span>
+          </div>
         </div>
-        <span class="dl-progress-text"
-              th:text="${#numbers.formatDecimal(task.progress, 1, 1)} + '%'">0%</span>
-      </div>
-
-      <div class="dl-task-meta">
-        <span class="dl-size"
-              th:text="${task.formattedDownloadedSize} + ' / ' + ${task.formattedTotalSize}">0 B</span>
-        <span class="dl-speed" th:text="${task.formattedSpeed}">0 B/s</span>
-        <span class="dl-error" style="color:var(--danger);font-size:0.78rem;"
-              th:text="${task.error}"></span>
-      </div>
-
-      <!-- Actions via data-* pour éviter th:onclick avec String (interdit par Thymeleaf 3.1+) -->
-      <div class="dl-task-actions" th:data-id="${task.id}" th:data-status="${task.status.name()}" th:data-animename="${task.animeName}">
-        <!-- Les boutons sont générés par JS via renderTaskActions() -->
+        <div class="dl-progress-wrap">
+          <div class="dl-progress-bar">
+            <div class="dl-progress-fill" th:style="'width:' + ${task.progress} + '%'"></div>
+          </div>
+          <span class="dl-size" th:text="${task.formattedDownloadedSize} + ' / ' + ${task.formattedTotalSize}">0 B</span>
+        </div>
+        <span class="dl-progress-text" th:text="${#numbers.formatDecimal(task.progress, 1, 1)} + '%'">0%</span>
+        <div>
+          <span class="dl-speed" th:text="${task.formattedSpeed}">0 B/s</span>
+          <span class="dl-error" th:text="${task.error}"></span>
+          <div class="dl-speed-limit-container" style="margin-top: 0.25rem;">
+            <span th:if="${task.maxSpeedLimit > 0}" class="dl-speed-limit-badge">
+              Max: <span th:text="${task.maxSpeedLimit / 1024} + ' KB/s'"></span>
+              <button class="speed-limit-btn" th:onclick="'changeTaskSpeedLimit(\'' + ${task.id} + '\')'">Modifier</button>
+            </span>
+            <span th:unless="${task.maxSpeedLimit > 0}">
+              <button class="speed-limit-btn" th:onclick="'changeTaskSpeedLimit(\'' + ${task.id} + '\')'">Limiter</button>
+            </span>
+          </div>
+        </div>
+        <div class="dl-task-actions" th:data-id="${task.id}" th:data-status="${task.status.name()}" th:data-animename="${task.animeName}"></div>
       </div>
     </div>
+  </section>
 
-    <div th:if="${tasks == null or tasks.isEmpty()}" class="empty-state" id="dl-empty">
-      <div class="empty-icon">⬇️</div>
-      <h3>Aucun téléchargement actif</h3>
-      <p>Lancez des téléchargements depuis la page d'un animé.</p>
-      <a href="/" class="btn btn-primary">Rechercher</a>
+  <section class="fade-in" data-download-group="queue">
+    <h2 class="download-section-title">
+      <span class="section-marker queue"></span>
+      En file d'attente
+    </h2>
+    <div class="dl-list" id="queue-list">
+      <div th:each="task, taskStat : ${tasks}"
+           th:if="${task.status.name() == 'PENDING' or task.status.name() == 'SCHEDULED'}"
+           th:id="'task-' + ${task.id}"
+           class="dl-task-row queue-row"
+           draggable="true"
+           th:data-id="${task.id}"
+           th:data-status="${task.status.name()}">
+        <span class="queue-index" th:text="${taskStat.index + 1}">1</span>
+        <span class="drag-dots">::</span>
+        <div class="dl-main">
+          <div class="dl-cover" th:text="${#strings.substring(task.animeName,0,1)}">A</div>
+          <div>
+            <span class="dl-task-name" th:text="${task.animeName}">Anime</span>
+            <span class="dl-subtitle" th:text="'Episode ' + ${task.episodeNumber} + ' - ' + ${task.fileName}">Episode</span>
+          </div>
+        </div>
+        <span class="dl-size">
+          <span th:if="${task.status.name() == 'SCHEDULED' and task.scheduledStartTime != null}"
+                class="dl-scheduled-info" th:data-time="${task.scheduledStartTime.toString()}"
+                th:text="'Planifié : ' + ${task.scheduledStartTime}"></span>
+          <span th:unless="${task.status.name() == 'SCHEDULED'}" th:text="${task.formattedTotalSize}">0 B</span>
+        </span>
+        <div class="dl-task-actions" th:data-id="${task.id}" th:data-status="${task.status.name()}" th:data-animename="${task.animeName}"></div>
+      </div>
     </div>
+  </section>
+
+  <section class="fade-in" data-download-group="done" style="display:none">
+    <h2 class="download-section-title">
+      <span class="section-marker"></span>
+      Termines et inactifs
+    </h2>
+    <div class="dl-list" id="completed-list">
+      <div th:each="task : ${tasks}"
+           th:if="${task.status.name() == 'COMPLETED' or task.status.name() == 'FAILED' or task.status.name() == 'CANCELLED'}"
+           th:id="'task-' + ${task.id}"
+           class="dl-task-row"
+           th:data-id="${task.id}"
+           th:data-status="${task.status.name()}">
+        <div class="dl-main">
+          <div class="dl-cover" th:text="${#strings.substring(task.animeName,0,1)}">A</div>
+          <div>
+            <span class="dl-task-name" th:text="${task.animeName}">Anime</span>
+            <span class="dl-subtitle" th:text="'Episode ' + ${task.episodeNumber} + ' - ' + ${task.fileName}">Episode</span>
+          </div>
+        </div>
+        <span class="status-badge dl-task-status"
+              th:classappend="${task.status.name() == 'COMPLETED'} ? ' badge-ok' : (${task.status.name() == 'FAILED'} ? ' badge-err' : ' badge-other')"
+              th:text="${task.status}">STATUS</span>
+        <span class="dl-size" th:text="${task.formattedTotalSize}">0 B</span>
+        <span class="dl-progress-text" th:text="${#numbers.formatDecimal(task.progress, 1, 1)} + '%'">0%</span>
+        <div class="dl-task-actions" th:data-id="${task.id}" th:data-status="${task.status.name()}" th:data-animename="${task.animeName}"></div>
+      </div>
+    </div>
+  </section>
+
+  <div th:if="${tasks == null or tasks.isEmpty()}" class="empty-state" id="dl-empty">
+    <div class="empty-icon">
+      <svg viewBox="0 0 24 24"><path d="M12 3v11"/><path d="m7 10 5 5 5-5"/><path d="M5 20h14"/></svg>
+    </div>
+    <h3>Aucun telechargement</h3>
+    <p>Lancez des telechargements depuis la fiche d'un anime.</p>
+    <a href="/" class="btn btn-primary">Rechercher un anime</a>
   </div>
-</div>
+
+  <p class="download-hint">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8h.01M11 12h1v4h1"/></svg>
+    Les premiers episodes de la file sont telecharges en priorite.
+  </p>
+</main>
 
 <div class="toast-container" id="toast-container"></div>
+<link rel="stylesheet" href="https://cdn.plyr.io/3.7.8/plyr.css"/>
+<script src="https://cdn.plyr.io/3.7.8/plyr.polyfilled.js"></script>
 <script src="/js/app.js"></script>
 <script>
 document.getElementById('nav-downloads')?.classList.add('active');
 
-// Initialiser les boutons d'action sur les lignes SSR
 document.querySelectorAll('.dl-task-actions[data-id]').forEach(actEl => {
   const id = actEl.dataset.id;
   const status = actEl.dataset.status;
@@ -138,140 +292,15 @@ document.querySelectorAll('.dl-task-actions[data-id]').forEach(actEl => {
   actEl.innerHTML = renderTaskActions({ id, status, animeName });
 });
 
-// Contrôles globaux
-document.getElementById('pause-all-btn').addEventListener('click', () =>
-  fetch('/api/download/pause-all', { method: 'POST' }));
-document.getElementById('resume-all-btn').addEventListener('click', () =>
-  fetch('/api/download/resume-all', { method: 'POST' }));
-document.getElementById('clean-btn').addEventListener('click', () =>
-  fetch('/api/download/clean', { method: 'POST' }));
+document.getElementById('pause-all-btn')?.addEventListener('click', () =>
+  fetch('/api/download/pause-all', { method: 'POST' }).then(() => showToast('Telechargements actifs mis en pause', 'info')));
+document.getElementById('resume-all-btn')?.addEventListener('click', () =>
+  fetch('/api/download/resume-all', { method: 'POST' }).then(() => showToast('Telechargements repris', 'success')));
+document.getElementById('clean-btn')?.addEventListener('click', () =>
+  fetch('/api/download/clean', { method: 'POST' }).then(() => setTimeout(() => window.location.reload(), 400)));
 
-let currentSettings = { maxConcurrentDownloads: 3, globalSpeedLimit: 0, plexOrganization: false, selectedUserAgent: "Random (Rotator)" };
-
-// Toggle panneau paramètres
-const settingsPanel = document.getElementById('settings-panel');
-const toggleSettingsBtn = document.getElementById('toggle-settings-btn');
-if (toggleSettingsBtn && settingsPanel) {
-  toggleSettingsBtn.addEventListener('click', () => {
-    const isHidden = settingsPanel.style.display === 'none';
-    settingsPanel.style.display = isHidden ? 'block' : 'none';
-    toggleSettingsBtn.style.background = isHidden ? 'var(--accent)' : 'rgba(124,106,247,0.12)';
-    toggleSettingsBtn.style.color = isHidden ? '#fff' : 'var(--accent)';
-  });
-}
-
-// Gérer l'affichage de l'input custom UA
-const uaSelect = document.getElementById('user-agent-select');
-const customUaGroup = document.getElementById('custom-ua-group');
-if (uaSelect && customUaGroup) {
-  uaSelect.addEventListener('change', () => {
-    customUaGroup.style.display = uaSelect.value === 'Custom' ? 'flex' : 'none';
-  });
-}
-
-// Bouton de sauvegarde global
-document.getElementById('save-settings-btn').addEventListener('click', async () => {
-  const maxConcurrent = parseInt(document.getElementById('max-concurrent-input').value, 10) || 3;
-  const globalSpeed = (parseInt(document.getElementById('global-speed-input-settings').value, 10) || 0) * 1024;
-  const plexOrg = document.getElementById('plex-org-cb').checked;
-  
-  let uaValue = uaSelect.value;
-  if (uaValue === 'Custom') {
-    uaValue = document.getElementById('custom-ua-input').value.trim();
-    if (!uaValue) {
-      showToast('Veuillez saisir un User-Agent personnalisé', 'error');
-      return;
-    }
-  }
-
-  currentSettings.maxConcurrentDownloads = maxConcurrent;
-  currentSettings.globalSpeedLimit = globalSpeed;
-  currentSettings.plexOrganization = plexOrg;
-  currentSettings.selectedUserAgent = uaValue;
-
-  await saveSettingsToServer();
-});
-
-async function saveSettingsToServer() {
-  try {
-    const resp = await fetch('/api/download/settings', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(currentSettings)
-    });
-    const data = await resp.json();
-    if (data.success) {
-      showToast('Paramètres mis à jour ✨', 'success');
-      setTimeout(() => window.location.reload(), 800);
-    } else {
-      showToast(data.error || 'Erreur lors de la mise à jour', 'error');
-    }
-  } catch (err) {
-    showToast('Erreur de connexion', 'error');
-  }
-}
-
-// Charger les settings
-fetch('/api/download/settings').then(r => r.json()).then(s => {
-  currentSettings = s;
-  document.getElementById('max-concurrent-input').value = s.maxConcurrentDownloads;
-  document.getElementById('global-speed-input-settings').value = s.globalSpeedLimit > 0 ? Math.round(s.globalSpeedLimit / 1024) : '';
-  document.getElementById('plex-org-cb').checked = !!s.plexOrganization;
-  
-  const uaSelect = document.getElementById('user-agent-select');
-  const customUaInput = document.getElementById('custom-ua-input');
-  const customUaGroup = document.getElementById('custom-ua-group');
-  
-  const standardUas = ['Random (Rotator)', 'Chrome', 'Firefox', 'Safari', 'Edge'];
-  if (s.selectedUserAgent && standardUas.includes(s.selectedUserAgent)) {
-    uaSelect.value = s.selectedUserAgent;
-    customUaGroup.style.display = 'none';
-  } else if (s.selectedUserAgent) {
-    uaSelect.value = 'Custom';
-    customUaInput.value = s.selectedUserAgent;
-    customUaGroup.style.display = 'flex';
-  }
-}).catch(() => {});
+initDownloadSettingsPanel();
+refreshDownloadStats();
 </script>
-
-<style>
-.dl-controls {
-  display: flex; align-items: center; justify-content: space-between;
-  flex-wrap: wrap; gap: 0.75rem; padding: 0.75rem 1rem;
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); margin-bottom: 1rem;
-}
-.dl-controls-left, .dl-controls-right { display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
-.dl-list { display: flex; flex-direction: column; gap: 0.5rem; }
-.dl-task-row {
-  background: var(--card); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 0.85rem 1rem;
-  display: flex; flex-direction: column; gap: 0.4rem;
-  transition: border var(--transition);
-}
-.dl-task-row:hover { border-color: var(--border-hover); }
-.dl-task-row[data-status="COMPLETED"] { border-left: 3px solid var(--success); }
-.dl-task-row[data-status="FAILED"]    { border-left: 3px solid var(--danger); }
-.dl-task-header {
-  display: flex; align-items: center; justify-content: space-between; gap: 0.5rem;
-}
-.dl-task-name {
-  font-size: 0.88rem; font-weight: 600;
-  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 1;
-}
-.dl-progress-wrap { display: flex; align-items: center; gap: 0.5rem; }
-.dl-progress-bar {
-  flex: 1; height: 6px;
-  background: rgba(255,255,255,0.08); border-radius: 99px; overflow: hidden;
-}
-.dl-progress-fill {
-  height: 100%; background: var(--accent);
-  border-radius: 99px; transition: width 0.4s ease;
-}
-.dl-progress-text { font-size: 0.75rem; color: var(--text-secondary); min-width: 40px; text-align: right; }
-.dl-task-meta { display: flex; gap: 1rem; align-items: center; flex-wrap: wrap; }
-.dl-size, .dl-speed { font-size: 0.78rem; color: var(--text-muted); }
-.dl-task-actions { display: flex; gap: 0.4rem; flex-wrap: wrap; }
-</style>
 </body>
 </html>

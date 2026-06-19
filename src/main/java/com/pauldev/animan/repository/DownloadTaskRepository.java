@@ -13,4 +13,6 @@ public interface DownloadTaskRepository extends JpaRepository<DownloadTaskEntity
     List<DownloadTaskEntity> findByAnimeName(String animeName);
     long countByStatus(DownloadStatus status);
     List<DownloadTaskEntity> findByStatusIn(java.util.Collection<DownloadStatus> statuses);
+    void deleteByStatusIn(java.util.Collection<DownloadStatus> statuses);
+    void deleteByAnimeName(String animeName);
 }

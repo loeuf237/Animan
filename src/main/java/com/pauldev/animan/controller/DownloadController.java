@@ -268,7 +268,9 @@ public class DownloadController {
         return ResponseEntity.ok(Map.of(
                 "maxConcurrentDownloads", downloadManager.getMaxConcurrentDownloads(),
                 "globalSpeedLimit", downloadManager.getGlobalSpeedLimit(),
-                "plexOrganization", downloadManager.isPlexOrganization()
+                "plexOrganization", downloadManager.isPlexOrganization(),
+                "selectedUserAgent", downloadManager.getSelectedUserAgent(),
+                "ffmpegAvailable", downloadManager.isFFmpegAvailable()
         ));
     }
 
@@ -282,10 +284,14 @@ public class DownloadController {
             int maxConcurrent = Integer.parseInt(String.valueOf(body.get("maxConcurrentDownloads")));
             long globalLimit = Long.parseLong(String.valueOf(body.get("globalSpeedLimit")));
             boolean plexOrg = Boolean.parseBoolean(String.valueOf(body.get("plexOrganization")));
+            String selectedUA = (String) body.get("selectedUserAgent");
             
             downloadManager.setMaxConcurrentDownloads(maxConcurrent);
             downloadManager.setGlobalSpeedLimit(globalLimit);
             downloadManager.setPlexOrganization(plexOrg);
+            if (selectedUA != null) {
+                downloadManager.setSelectedUserAgent(selectedUA);
+            }
             
             return ResponseEntity.ok(Map.of("success", true, "message", "Paramètres mis à jour"));
         } catch (Exception e) {
@@ -338,5 +344,15 @@ public class DownloadController {
         }
         downloadManager.moveSeriesToTop(animeName);
         return ResponseEntity.ok(Map.of("success", true, "message", "Série " + animeName + " montée en haut de la file"));
+    }
+
+    /**
+     * Réordonne la file d'attente.
+     */
+    @PostMapping("/api/download/reorder")
+    @ResponseBody
+    public ResponseEntity<Map<String, Object>> reorderTasks(@RequestBody List<String> orderedIds) {
+        downloadManager.reorderTasks(orderedIds);
+        return ResponseEntity.ok(Map.of("success", true, "message", "File d'attente réorganisée"));
     }
 }
